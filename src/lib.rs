@@ -158,6 +158,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
 }
 
 /// Normalize text to present tense
+#[allow(dead_code)]
 fn normalize_tense(text: &str) -> PyResult<String> {
     // Pattern: verbs ending in "ed" -> base form (simplified)
     let pattern = Regex::new(r"(\w+)ed\b").unwrap();
