@@ -220,16 +220,20 @@ fn remove_articles(text: &str) -> String {
     // Split into words to check length
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
-    
-    // If sentence is too short, preserve it unchanged
-    if word_count < 3 {
+
+    // Count articles that would be removed
+    let pattern = Regex::new(r"(?i)\b(the|a|an)\b").unwrap();
+    let article_count = words.iter().filter(|w| pattern.is_match(w)).count();
+
+    // If removal would leave less than 3 words, preserve unchanged
+    if word_count - article_count < 3 {
         return text.to_string();
     }
-    
+
     // Pattern to match articles at word boundaries (case-insensitive)
     let pattern = Regex::new(r"(?i)\b(the|a|an)\b").unwrap();
     let result = pattern.replace_all(text, "").to_string();
-    
+
     // Trim extra spaces left by removal
     result.trim().to_string()
 }
@@ -240,23 +244,27 @@ fn remove_intensifiers(text: &str) -> String {
     // Split into words to check length
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
-    
-    // If sentence is too short, preserve it unchanged
-    if word_count < 3 {
+
+    // Count intensifiers that would be removed
+    let pattern = Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
+    let intensifier_count = words.iter().filter(|w| pattern.is_match(w)).count();
+
+    // If removal would leave less than 3 words, preserve unchanged
+    if word_count - intensifier_count < 3 {
         return text.to_string();
     }
-    
+
     // Pattern to match intensifiers at word boundaries (case-insensitive)
     let pattern = Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
     let result = pattern.replace_all(text, "").to_string();
-    
+
     // Trim extra spaces
     result.trim().to_string()
 }
 
 // Remove connectives (because, however, therefore, but)
 fn eliminate_connectives(text: &str) -> String {
-    let pattern = Regex::new(r"\b(because|however|therefore|but)\b").unwrap();
+    let pattern = Regex::new(r"(?i)\b(because|however|therefore|but)\b").unwrap();
     pattern.replace_all(text, "").to_string()
 }
 
@@ -417,6 +425,6 @@ mod tests {
         println!("Debug: result = '{}'", result);
         assert!(result.contains("John"));
         assert!(result.contains("threw"));
-        assert!(!result.contains("the"));
+        assert!(result.contains("the")); // transform_active_voice does NOT remove articles; that's done later in compress()
     }
 }
