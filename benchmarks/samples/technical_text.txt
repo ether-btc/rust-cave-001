@@ -1,0 +1,1 @@
+The database needs an index because queries are too slow. The query planner is not using the optimal execution plan. We need to analyze the query patterns and add appropriate indexes to improve performance.
