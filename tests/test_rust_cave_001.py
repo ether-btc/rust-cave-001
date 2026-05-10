@@ -211,15 +211,29 @@ class TestPreprocessText:
         assert result == "John threw the ball"
 
     def test_logical_completeness_rejects_short(self):
-        """preprocess_text rejects text with fewer than 3 words."""
+        """preprocess_text rejects text with fewer than 2 words.
+
+        Now that logical completeness check accepts 2-word sentences,
+        only single-word inputs should raise an error.
+        """
         with pytest.raises(Exception):  # PyValueError
-            preprocess_text("Hello world")
+            preprocess_text("Hello")  # 1 word -> should fail
+            # "Hello world" (2 words) now passes
 
     def test_logical_completeness_accepts_three_words(self):
         """Three-word sentences pass."""
         # "The dog barked" — but this isn't passive voice pattern
         # Use a 3-word sentence that isn't passive
         result = preprocess_text("I am here")
+        assert result  # should not raise
+
+    def test_logical_completeness_accepts_two_words(self):
+        """Two-word sentences pass.
+
+        With the updated logical completeness check, 2-word sentences
+        like "Hello world" are now accepted.
+        """
+        result = preprocess_text("Hello world")
         assert result  # should not raise
 
     def test_logical_completeness_rejects_empty(self):
@@ -241,7 +255,9 @@ class TestCompress:
 
     def test_article_removal_a_an(self):
         """Rule 7: 'a' and 'an' are removed from longer sentences.
-        Short sentences where removal would produce <3 words are preserved unchanged."""
+
+        Short sentences where removal would produce <3 words are preserved unchanged.
+        """
         import re
         # Long sentence: "An" at word boundary is stripped
         result = compress("An index improves performance significantly")
@@ -395,7 +411,7 @@ class TestEdgeCases:
 
     def test_newlines_tabs(self):
         """Newlines and tabs survive round-trip."""
-        text = "line1\n\tline2\r\nline3"
+        text = "line1\n\ttline2\r\nline3"
         compressed = my_compress(text.encode("utf-8"))
         decompressed = decompress(compressed).decode("utf-8")
         assert decompressed == text

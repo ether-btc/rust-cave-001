@@ -232,5 +232,6 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(serialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(deserialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
+    module.add_function(wrap_pyfunction!(compress, module)?)?;
     Ok(())
 }
