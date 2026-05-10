@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [lib]
+name = "rust_cave_001"
 crate-type = ["cdylib"]
 
 [[bin]]

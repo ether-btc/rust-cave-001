@@ -13,4 +13,4 @@ if lib_path not in sys.path:
 os.environ['LD_LIBRARY_PATH'] = lib_path + ':' + os.environ.get('LD_LIBRARY_PATH', '')
 
 # Import the Rust-compiled module
-from rust_cave_001 import my_compress, decompress, estimate_tokens, get_stats, preprocess_text, serialize_compressed, deserialize_compressed
+from rust_cave_001 import my_compress, decompress, estimate_tokens, get_stats, preprocess_text, serialize_compressed, deserialize_compressed, compress
