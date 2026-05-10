@@ -21,9 +21,7 @@ DB needs index, queries too slow. Adding index has overhead.
 ```
 rust-cave-001/
 ├── src/
-│   ├── lib.rs           # Main implementation + PyO3 bindings
-│   └── bin/
-│       └── debug_logical.rs
+│   └── lib.rs           # Main implementation + PyO3 bindings
 ├── target/
 │   ├── debug/           # Debug build artifacts
 │   ├── release/         # Release build (librust_cave_001.so)
@@ -32,7 +30,9 @@ rust-cave-001/
 ├── Cargo.toml          # Rust dependencies
 ├── pyproject.toml      # Maturin/pip config
 ├── setup.py            # Legacy setup (unused)
-└── PROJECT_STATUS.md   # Detailed status and issue tracker
+├── tests/              # Pytest test suite (53 tests)
+├── PROJECT_STATUS.md   # Detailed status and issue tracker
+└── README.md           # This file
 ```
 
 ## Quick Start
@@ -118,11 +118,11 @@ Built-in irregular verb transformations (past participle → simple past):
 ## Known Issues
 
 - **Disk space**: Building requires ~150MB. Root partition on Pi fills up during compilation.
-- **normalize_tense**: Disabled in `preprocess_text` — corrupts verbs like "made" → "mak". Fix exists in source, needs rebuild.
-- **Decompression**: Currently a placeholder (returns data as-is). Full implementation pending.
-- **Bincode serialization**: Not yet integrated with compression pipeline.
-
-See `PROJECT_STATUS.md` for detailed issue tracking and resolution progress.
+- **Logical completeness check**: Rejects 2-word sentences (e.g., "Hello world") as incomplete. This is intentional but may be too strict for some use cases.
+- **Verb conjugation map**: Limited to ~60 irregular verbs. Many common verbs are missing.
+- **No benchmark suite**: No performance measurements or compression ratio benchmarks.
+- **x86_64 testing**: Only tested on Raspberry Pi 5 (arm64). Cross-platform compatibility untested.
+- **Hermes integration**: Not yet integrated as a Hermes tool.
 
 ## Tech Stack
 
