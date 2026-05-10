@@ -135,7 +135,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     let result = pattern.replace_all(text, |caps: &regex::Captures| {
         let subject = &caps[1];
         let verb_pp = &caps[2].to_lowercase();
-        let agent = &caps[3];
+        let mut agent = caps[3].trim_end_matches(|c: char| c == '.' || c == '!' || c == '?');
 
         // Look up conjugated verb form
         let verb_past = verb_conjugations
