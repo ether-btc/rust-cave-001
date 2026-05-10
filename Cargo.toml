@@ -1,0 +1,18 @@
+[package]
+name = "rust-cave-001"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "debug_logical"
+path = "src/bin/debug_logical.rs"
+
+[dependencies]
+pyo3 = { version = "0.24.2", features = ["extension-module"] }
+lz4 = "1.0"
+regex = "1.10.0"
+bincode = "1.0"
+
