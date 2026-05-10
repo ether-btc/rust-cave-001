@@ -109,6 +109,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         ("grown", "grew"),
         ("flown", "flew"),
         ("broken", "broke"),
+        ("sung", "sang"),
         ("drunk", "drank"),
         ("sunk", "sank"),
         ("spun", "spun"),
@@ -127,9 +128,9 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     .cloned()
     .collect();
 
-    // Regex to match passive voice: "The X was V-ed by Z"
-    // Pattern breakdown: "The " + (subject) + " was " + (verb-pp) + " by " + (agent)
-    let pattern = Regex::new(r"(?i)\bThe\s+(\w+)\s+was\s+(\w+)\s+by\s+(\w+)").unwrap();
+// Regex to match passive voice: "The X was V-ed by Z" → "Z V-ed the X"
+    // Pattern breakdown: "The " + (subject: one or more words) + " was " + (verb-pp) + " by " + (agent: one or more words)
+    let pattern = Regex::new(r"(?i)\bThe\s+(.+?)\s+was\s+(\w+)\s+by\s+(.+)").unwrap();
 
     let result = pattern.replace_all(text, |caps: &regex::Captures| {
         let subject = &caps[1];
@@ -199,16 +200,10 @@ pub fn preprocess_text(text: &str) -> PyResult<String> {
     // Transform to active voice (agent verb_past the subject)
     result = transform_active_voice(&result)?;
 
-    // NOTE: normalize_tense is DISABLED because it incorrectly strips 'ed' from
-    // conjugated verbs like "made" (from "created") → "mak", breaking output.
-    // The active voice transformation already handles the primary goal of
+    // Active voice transformation already handles the primary goal of
     // converting passive to active voice. Present tense normalization needs a
     // proper verb conjugation database to work correctly.
     // result = normalize_tense(&result)?;
-
-    // Debug: print intermediate result
-    eprint!("DEBUG: after transformations: '{}'\n", result);
-    std::io::Write::flush(&mut std::io::stderr()).unwrap();
 
     // Check logical completeness
     if !is_logically_complete(&result) {
