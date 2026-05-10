@@ -222,7 +222,7 @@ fn rust_cave_001(
     module: &pyo3::prelude::Bound<'_, pyo3::types::PyModule>,
 ) -> PyResult<()> {
     use crate::{
-        decompress, deserialize_compressed, estimate_tokens, get_stats, my_compress,
+        compress, decompress, deserialize_compressed, estimate_tokens, get_stats, my_compress,
         preprocess_text, serialize_compressed,
     };
     module.add_function(wrap_pyfunction!(my_compress, module)?)?;
@@ -231,7 +231,7 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(get_stats, module)?)?;
     module.add_function(wrap_pyfunction!(serialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(deserialize_compressed, module)?)?;
-    module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
-    module.add_function(wrap_pyfunction!(compress, module)?)?;
-    Ok(())
+module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
+module.add_function(wrap_pyfunction!(compress, module)?)?;
+Ok(())
 }
