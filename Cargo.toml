@@ -7,13 +7,12 @@ edition = "2021"
 name = "rust_cave_001"
 crate-type = ["cdylib"]
 
-[[bin]]
-name = "debug_logical"
-path = "src/bin/debug_logical.rs"
 
 [dependencies]
 pyo3 = { version = "0.24.2", features = ["extension-module"] }
 lz4 = "1.0"
 regex = "1.10.0"
 bincode = "1.0"
+serde = "1.0.228"
+serde_json = "1.0.149"
 

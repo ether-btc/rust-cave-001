@@ -1,3 +1,4 @@
+use bincode;
 use lz4::block::{self, CompressionMode};
 use pyo3::exceptions;
 use pyo3::prelude::*;
@@ -51,17 +52,18 @@ pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<PyObject> {
     })
 }
 
-/// Compress already-serialized data
 #[pyfunction]
-#[pyo3(signature = (serialized_data, level = 9))]
-pub fn serialize_compressed(serialized_data: &[u8], level: i32) -> PyResult<Vec<u8>> {
-    my_compress(serialized_data, level)
+pub fn serialize_compressed(text: &str, level: i32) -> PyResult<Vec<u8>> {
+    let serialized = bincode::serialize(text)?;
+    my_compress(&serialized, level)
 }
 
-/// Decompress data back to serialized form
+/// Decompress and deserialize data to text
 #[pyfunction]
-pub fn deserialize_compressed(data: &[u8]) -> PyResult<Vec<u8>> {
-    decompress(data)
+pub fn deserialize_compressed(data: &[u8]) -> PyResult<String> {
+    let decompressed = decompress(data)?;
+    let deserialized = bincode::deserialize::<String>(&decompressed)?;
+    Ok(deserialized)
 }
 
 // =============================================================================
@@ -416,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_remove_articles() {
-        assert_eq!(remove_articles("The database needs an index"), " database needs  index");
+ assert_eq!(remove_articles("The database needs an index"), "database needs index");
         assert_eq!(remove_articles("A test sentence"), " test sentence");
     }
 
