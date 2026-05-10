@@ -123,6 +123,72 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         ("hurt", "hurt"),
         ("let", "let"),
         ("regretted", "regretted"),
+        ("begun", "began"),
+        ("broken", "broke"),
+        ("chosen", "chose"),
+        ("come", "came"),
+        ("done", "did"),
+        ("drawn", "drew"),
+        ("drunk", "drank"),
+        ("driven", "drove"),
+        ("eaten", "ate"),
+        ("fallen", "fell"),
+        ("fed", "fed"),
+        ("felt", "felt"),
+        ("fought", "fought"),
+        ("found", "found"),
+        ("flown", "flew"),
+        ("forgotten", "forgot"),
+        ("forgiven", "forgave"),
+        ("frozen", "froze"),
+        ("gotten", "got"),
+        ("given", "gave"),
+        ("gone", "went"),
+        ("grown", "grew"),
+        ("had", "had"),
+        ("heard", "heard"),
+        ("hidden", "hid"),
+        ("hit", "hit"),
+        ("held", "held"),
+        ("kept", "kept"),
+        ("known", "knew"),
+        ("led", "led"),
+        ("learned", "learned"),
+        ("left", "left"),
+        ("lent", "lent"),
+        ("let", "let"),
+        ("lain", "lay"),
+        ("lost", "lost"),
+        ("made", "made"),
+        ("meant", "meant"),
+        ("met", "met"),
+        ("paid", "paid"),
+        ("put", "put"),
+        ("read", "read"),
+        ("ridden", "rode"),
+        ("rung", "rang"),
+        ("run", "ran"),
+        ("said", "said"),
+        ("seen", "saw"),
+        ("sold", "sold"),
+        ("sent", "sent"),
+        ("shown", "showed"),
+        ("shut", "shut"),
+        ("sung", "sang"),
+        ("sat", "sat"),
+        ("slept", "slept"),
+        ("spoken", "spoke"),
+        ("spent", "spent"),
+        ("stood", "stood"),
+        ("swum", "swam"),
+        ("taken", "took"),
+        ("taught", "taught"),
+        ("told", "told"),
+        ("thought", "thought"),
+        ("understood", "understood"),
+        ("worn", "wore"),
+        ("won", "won"),
+        ("written", "wrote"),
     ]
     .iter()
     .cloned()
@@ -234,6 +300,10 @@ fn remove_articles(text: &str) -> String {
     let pattern = Regex::new(r"(?i)\b(the|a|an)\b").unwrap();
     let result = pattern.replace_all(text, "").to_string();
 
+    // Collapse multiple spaces into single space
+    let collapse_spaces = Regex::new(r"\s+").unwrap();
+    let result = collapse_spaces.replace_all(&result, " ").to_string();
+
     // Trim extra spaces left by removal
     result.trim().to_string()
 }
@@ -257,6 +327,10 @@ fn remove_intensifiers(text: &str) -> String {
     // Pattern to match intensifiers at word boundaries (case-insensitive)
     let pattern = Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
     let result = pattern.replace_all(text, "").to_string();
+
+    // Collapse multiple spaces into single space
+    let collapse_spaces = Regex::new(r"\s+").unwrap();
+    let result = collapse_spaces.replace_all(&result, " ").to_string();
 
     // Trim extra spaces
     result.trim().to_string()
