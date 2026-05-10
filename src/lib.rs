@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use regex::Regex;
 
+extern crate pyo3;
+
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm
@@ -173,6 +175,47 @@ fn is_logically_complete(text: &str) -> bool {
     pattern.is_match(text)
 }
 
+// Split text into sentences based on punctuation (. ! ?)
+fn split_into_sentences(text: &str) -> Vec<String> {
+    let mut sentences = Vec::new();
+    let mut current = String::new();
+    let mut chars = text.chars().peekable();
+
+    while let Some(c) = chars.next() {
+        current.push(c);
+        
+        // Check for sentence-ending punctuation followed by space or end of string
+        if c == '.' || c == '!' || c == '?' {
+            // Look ahead: if next char is whitespace or end, this is a sentence boundary
+            match chars.peek() {
+                Some(&next) if next.is_whitespace() => {
+                    // End of sentence - trim and add to list
+                    sentences.push(current.trim().to_string());
+                    current.clear();
+                    // Skip the whitespace
+                    while let Some(ws) = chars.next_if(|c| c.is_whitespace()) {}
+                }
+                None => {
+                    // End of string - add final sentence
+                    sentences.push(current.trim().to_string());
+                    current.clear();
+                }
+                _ => {
+                    // Not a sentence boundary (e.g., part of ellipsis "..." or abbreviation)
+                    // Continue building the current sentence
+                }
+            }
+        }
+    }
+
+    // Add any remaining text as a sentence
+    if !current.trim().is_empty() {
+        sentences.push(current.trim().to_string());
+    }
+
+    sentences
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -192,9 +235,142 @@ mod tests {
     }
 }
 
+// Remove articles (the, a, an) from text
+// Short sentences where removal would produce <3 words are preserved unchanged
+fn remove_articles(text: &str) -> String {
+    // Split into words to check length
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let word_count = words.len();
+    
+    // If sentence is too short, preserve it unchanged
+    if word_count < 3 {
+        return text.to_string();
+    }
+    
+    // Pattern to match articles at word boundaries
+    let pattern = Regex::new(r"\b(the|a|an)\b").unwrap();
+    let result = pattern.replace_all(text, "").to_string();
+    
+    // Trim extra spaces left by removal
+    result.trim().to_string()
+}
+
+// Remove intensifiers (very, extremely, quite, rather, really, somewhat)
+// Short sentences where removal would produce <3 words are preserved unchanged
+fn remove_intensifiers(text: &str) -> String {
+    // Split into words to check length
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let word_count = words.len();
+    
+    // If sentence is too short, preserve it unchanged
+    if word_count < 3 {
+        return text.to_string();
+    }
+    
+    // Pattern to match intensifiers at word boundaries
+    let pattern = Regex::new(r"\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
+    let result = pattern.replace_all(text, "").to_string();
+    
+    // Trim extra spaces
+    result.trim().to_string()
+}
+
+// Remove connectives (because, however, therefore, but)
+fn eliminate_connectives(text: &str) -> String {
+    let pattern = Regex::new(r"\b(because|however|therefore|but)\b").unwrap();
+    pattern.replace_all(text, "").to_string()
+}
+
+// Enforce word limit (2-5 words)
+// Truncate sentences longer than 5 words by splitting on commas
+fn enforce_word_limit(text: &str) -> String {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let word_count = words.len();
+    
+    // If already within limit, return as is
+    if word_count <= 5 {
+        return text.to_string();
+    }
+    
+    // Try to split on commas first
+    if text.contains(',') {
+        // Take the first clause (before the first comma)
+        if let Some((first_part, _)) = text.split_once(',') {
+            let first_words: Vec<&str> = first_part.split_whitespace().collect();
+            if first_words.len() >= 2 && first_words.len() <= 5 {
+                return first_part.trim().to_string();
+            }
+        }
+    }
+    
+    // If no comma or comma split didn't give good length, take first 5 words
+    let mut result_words = Vec::new();
+    for word in words {
+        if result_words.len() < 5 {
+            result_words.push(word);
+        } else {
+            break;
+        }
+    }
+    
+    result_words.join(" ")
+}
+
+// Apply all Caveman compression rules in the correct order
+fn apply_caveman_rules(text: &str) -> PyResult<String> {
+    // 1. Split into sentences (if multiple)
+    let sentences = split_into_sentences(text);
+    let mut processed_sentences = Vec::new();
+    
+    for sentence in sentences {
+        let mut result = sentence;
+        
+        // 2. Active voice transformation
+        result = transform_active_voice(&result)?;
+        
+        // 3. Remove articles
+        result = remove_articles(&result);
+        
+        // 4. Remove intensifiers
+        result = remove_intensifiers(&result);
+        
+        // 5. Remove connectives
+        result = eliminate_connectives(&result);
+        
+        // 6. Enforce word limit
+        result = enforce_word_limit(&result);
+        
+        // 7. Check logical completeness (at least 2 words)
+        let min_words = 2;
+        let word_count = result.split_whitespace().count();
+        if word_count < min_words {
+            return Err(exceptions::PyValueError::new_err(
+                "Text lacks logical completeness - please provide complete sentences",
+            ));
+        }
+        
+        processed_sentences.push(result);
+    }
+    
+    // Join sentences back together
+    Ok(processed_sentences.join(" "))
+}
+/// Preprocess text by applying active voice, present tense, and logical completeness checks
+pub fn preprocess_text(text: &str) -> PyResult<String> {
+    let mut result = String::from(text);
+
+    // Transform to active voice (agent verb_past the subject)
+    result = transform_active_voice(&result)?;
+/// Apply all Caveman compression rules to the input text
 #[pyfunction]
 #[pyo3(signature = (text))]
+pub fn compress(text: &str) -> PyResult<String> {
+    apply_caveman_rules(text)
+}
+
 /// Preprocess text by applying active voice, present tense, and logical completeness checks
+#[pyfunction]
+#[pyo3(signature = (text))]
 pub fn preprocess_text(text: &str) -> PyResult<String> {
     let mut result = String::from(text);
 
@@ -231,7 +407,7 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(get_stats, module)?)?;
     module.add_function(wrap_pyfunction!(serialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(deserialize_compressed, module)?)?;
-module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
-module.add_function(wrap_pyfunction!(compress, module)?)?;
-Ok(())
+    module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
+    module.add_function(wrap_pyfunction!(compress, module)?)?;
+    Ok(())
 }
