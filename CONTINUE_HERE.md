@@ -1,5 +1,26 @@
 # Rust-Cave-001 - CONTINUE HERE
 
+## Phase Completed: Hermes @tool Integration (2026-05-13)
+- **Phase 1:** Cleanup — removed 20+ stale files (scripts, test stubs, debug output). Simplified build.rs
+- **Phase 2:** Installed rust_cave_001 into Hermes .venv (Python 3.13, abi3)
+- **Phase 3:** Created `tools/caveman_compression.py` with 3 tools:
+  - `compress()` — full caveman compression (10→5 tokens demo)
+  - `preprocess_text()` — passive-to-active voice transform
+  - `estimate_tokens()` — token counting
+- **Phase 4:** Registered in `toolsets.py` as `caveman` toolset, added to `_HERMES_CORE_TOOLS`
+- **Phase 5:** End-to-end verified via `registry.dispatch()`
+
+Commits:
+- rust-cave-001: `89f672c` → pushed to `https://github.com/ether-btc/rust-cave-001`
+- hermes-agent: `1431032e1` → pushed to fork `https://github.com/ether-btc/hermes-agent`
+- Note: upstream (NousResearch/hermes-agent) push denied — PR needed
+
+## Remaining TODO:
+- Open PR to NousResearch/hermes-agent
+- Cross-platform testing (x86_64)
+- Expand verb conjugation map
+- Relax logical completeness to 1-word minimum (edge case)
+
 ## Verification Session (2026-05-13 22:00)
 - Status check: all 58/58 tests passing
 - HEAD: `3eac77e` — repo clean, all pushed to `https://github.com/ether-btc/rust-cave-001`
