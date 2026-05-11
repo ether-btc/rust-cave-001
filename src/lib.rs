@@ -216,8 +216,10 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
                 }
             });
 
+        // Strip trailing punctuation from agent before inserting into output
+        let agent_trimmed = agent.trim_end_matches(|c| c == '.' || c == '!' || c == '?');
         // Return: "agent verb_past the subject"
-        format!("{} {} the {}", agent, verb_past, subject)
+        format!("{} {} the {}", agent_trimmed, verb_past, subject)
     });
 
     Ok(result.to_string())
@@ -337,9 +339,10 @@ fn remove_intensifiers(text: &str) -> String {
 }
 
 // Remove connectives (because, however, therefore, but)
+// Replaces with space to prevent word merging (case-insensitive)
 fn eliminate_connectives(text: &str) -> String {
-    let pattern = Regex::new(r"(?i)\b(because|however|therefore|but)\b").unwrap();
-    pattern.replace_all(text, "").to_string()
+    let pattern = Regex::new(r"(?i)\s*\b(because|however|therefore|but)\b,?\s*").unwrap();
+    pattern.replace_all(text, " ").trim().to_string()
 }
 
 // Enforce word limit (2-5 words)
