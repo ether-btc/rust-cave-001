@@ -290,7 +290,7 @@ fn remove_articles(text: &str) -> String {
     let word_count = words.len();
 
     // Count articles that would be removed
-    let pattern = Regex::new(r"(?i)\b(the|a|an)\b").unwrap();
+    let pattern = Regex::new(r"(?i)\b(this|the|a|an)\b").unwrap();
     let article_count = words.iter().filter(|w| pattern.is_match(w)).count();
 
     // If removal would leave less than 3 words, preserve unchanged
@@ -299,7 +299,7 @@ fn remove_articles(text: &str) -> String {
     }
 
     // Pattern to match articles at word boundaries (case-insensitive)
-    let pattern = Regex::new(r"(?i)\b(the|a|an)\b").unwrap();
+    let pattern = Regex::new(r"(?i)\b(this|the|a|an)\b").unwrap();
     let result = pattern.replace_all(text, "").to_string();
 
     // Collapse multiple spaces into single space
