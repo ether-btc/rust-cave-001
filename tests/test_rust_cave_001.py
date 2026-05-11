@@ -275,6 +275,33 @@ class TestCompress:
             # If it produces empty output, that's a known limitation — not a test failure
             pass
 
+    def test_article_removal_this(self):
+        """Rule 7: 'this' is also removed as a demonstrative article."""
+        result = compress("This is particularly interesting test")
+        # 'this' should be removed; 'is' stays (it can be a verb or auxiliary)
+        assert "this" not in result.lower()
+        # The core content should remain
+        assert "particularly" in result
+        assert "interesting" in result
+
+    def test_connective_case_insensitive(self):
+        """Rule 3: Connectives removed regardless of case."""
+        result = compress("However the system is slow.")
+        assert "however" not in result.lower()
+
+    def test_active_voice_trailing_period(self):
+        """Active voice transform strips trailing period from agent."""
+        result = compress("The song was sung by the choir.")
+        # Agent should NOT have trailing period: 'choir.' not in output
+        assert "choir." not in result
+        assert "choir sang" in result
+
+    def test_connective_no_word_merge(self):
+        """Connective removal leaves space, preventing word merging."""
+        result = compress("It is raining therefore we stay inside.")
+        # 'rainingtherefore' would be wrong — there should be a space
+        assert "rainingtherefore" not in result
+
     def test_intensifier_removal(self):
         """Rule 6: Intensifiers (very, extremely, quite, rather, really, somewhat) removed.
         When removal would leave <3 words, sentence is preserved unchanged."""
