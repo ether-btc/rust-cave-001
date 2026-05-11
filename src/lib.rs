@@ -259,7 +259,7 @@ fn split_into_sentences(text: &str) -> Vec<String> {
                     sentences.push(current.trim().to_string());
                     current.clear();
                     // Skip the whitespace
-                    while let Some(ws) = chars.next_if(|c| c.is_whitespace()) {}
+                    while let Some(_ws) = chars.next_if(|c| c.is_whitespace()) {}
                 }
                 None => {
                     // End of string - add final sentence

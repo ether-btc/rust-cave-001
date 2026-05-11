@@ -14,9 +14,3 @@ regex = "1.10.0"
 bincode = "1.0"
 serde = "1.0.228"
 serde_json = "1.0.149"
-
-[build-dependencies]
-pyo3-macros = "0.24.2"
-[[bin]]
-name = "test_regex"
-path = "src/test_regex.rs"

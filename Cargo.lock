@@ -238,7 +238,6 @@ dependencies = [
  "bincode",
  "lz4",
  "pyo3",
- "pyo3-macros",
  "regex",
  "serde",
  "serde_json",
