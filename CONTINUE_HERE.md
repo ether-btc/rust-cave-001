@@ -1,56 +1,61 @@
-# Rust-Cave-001 - CONTINUE HERE - 2026-05-11 15:49:59
+# Rust-Cave-001 - CONTINUE HERE - 2026-05-11 21:30
 
-## 📋 Current Status
+## Session Summary
 
-## 📋 Current Status
+All 4 identified bugs fixed and audited. Project is fully functional.
 
-### ✅ Completed
-- [x] Rust library built for aarch64 (Raspberry Pi 5)
-- [x] Python bindings created using PyO3
-- [x] Hermes Agent integration implemented
-- [x] 54 tests all passing
-- [x] Documentation written including README
-- [x] Linking issue resolved (May 11, 2026)
+## Bugs Fixed (This Session)
 
-### ❌ Current Blockage
-None - project is complete and fully functional.
+| # | Bug | Fix | Commit |
+|---|-----|-----|--------|
+| 1 | Case-sensitive connectives | Added `(?i)` flag + replace with space + strip comma | `b1b37ae` |
+| 2 | "this" not removed as article | Added `this` to article removal regex | `402091a` |
+| 3 | Trailing period on agent | `agent_trimmed = agent.trim_end_matches('.', '!', '?')` | `b1b37ae` |
+| 4 | (Already handled) | Short sentences preserved via article/intensifier guards | n/a |
 
-## 🎯 Immediate Next Steps
-None - project is complete. Consider cross-platform testing or deployment.
+## Regression Tests Added
 
-## 🔧 Technical Details
+- `test_article_removal_this` — "this" removed as article
+- `test_connective_case_insensitive` — "However" matched regardless of case
+- `test_active_voice_trailing_period` — "choir." → "choir" in agent position
+- `test_connective_no_word_merge` — "rainingtherefore" prevented
 
-### Fix Applied
-Changed PyO3 feature from `abi3-py312` to `abi3` to resolve linker errors with Python 3.13.5.
+## Current State
 
-### Build Commands
+| Metric | Value |
+|--------|-------|
+| Tests | **58/58 passing** (54 original + 4 new) |
+| Git HEAD | `3d8c68a` |
+| Branch | master, clean, all pushed |
+
+## What's Working
+
+`compress()` applies all 7 rules:
+1. Sentence splitting (`. ! ?`)
+2. Word limit 2-5 per sentence
+3. Connective elimination (case-insensitive, because/however/therefore/but)
+4. Active voice transform (trailing period on agent stripped)
+5. Intensifier removal (very/extremely/quite/rather/really/somewhat)
+6. Article removal (the/a/an/this — case-insensitive)
+7. Logical completeness filter (≥2 words)
+
+## Remaining Known Limitations (not bugs — design choices)
+
+1. **Verb conjugation map**: ~60 irregular verbs covered; unknown verbs fall back to stripping "ed" suffix
+2. **2-word sentences rejected**: `is_logically_complete` requires ≥2 words after all processing
+
+## Build Commands
+
 ```bash
 cd /srv/sync/projects/rust-cave-001
 source .venv/bin/activate
-cargo build --release --lib
-pip install -e .
-```
-
-### Test Command
-```bash
+cargo build --release --lib && pip install -e .
 pytest tests/ -v
 ```
 
-### Integration Test
-```bash
-python test_hermes_integration.py
-```
+## Future Enhancements
 
-## 📁 GitHub Commit
-- Commit: [latest]
-- Message: "Fix PyO3 linking for aarch64 - Switch to abi3 feature and conditional linking"
-- Files changed: Cargo.toml, build.rs (if applicable)
-
-## 🚦 Project Status
-**COMPLETED** - All 7 Caveman Compression rules implemented, tested, and integrated with Hermes Agent.
-
-## 🚦 Next Session Start
-- Run `cargo build --release` to test if the abi3 configuration resolves the linking issue
-- If still failing, try changing to `abi3` feature (without version)
-- Test with Python 3.12 if available
-- Complete Hermes integration test
+- Cross-platform testing (x86_64)
+- Hermes `@tool` decorator integration
+- Expand verb conjugation map
+- Relax logical completeness to 1-word minimum (edge case)
