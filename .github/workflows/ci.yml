@@ -34,6 +34,7 @@ jobs:
       - name: Build and install
         env:
           PYO3_PYTHON: python3.10
+          PYTHON: python3.10
         run: maturin build --release --auditwheel skip -o dist/
 
       - name: Install built wheel

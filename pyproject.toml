@@ -9,3 +9,4 @@ version = "0.1.0"
 [tool.maturin]
 module-name = "rust_cave_001"
 bindings = "pyo3"
+python-version = "3.10"
