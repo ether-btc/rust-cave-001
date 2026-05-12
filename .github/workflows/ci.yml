@@ -32,7 +32,12 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build and install
-        run: pip install --force-reinstall --editable . --no-build-isolation
+        env:
+          MATURIN_PYTHON: python3.10
+        run: maturin build --release --auditwheel skip -o dist/
+
+      - name: Install built wheel
+        run: pip install dist/*.whl --force-reinstall --no-deps
 
       - name: Run Python tests
         run: pytest tests/ -v
