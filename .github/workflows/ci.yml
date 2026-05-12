@@ -34,9 +34,9 @@ jobs:
 
       - name: Build and install
         env:
-          MATURIN_BUILD_SKIP_AUDITWHEEL: "1"
+          PYTHON: python3.10
         run: |
-          maturin build --release
+          maturin build --release --auditwheel skip
           pip install --force-reinstall --break-system-packages target/wheels/*.whl
 
       - name: Run Python tests
