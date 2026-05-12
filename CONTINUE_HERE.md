@@ -15,9 +15,12 @@
 - All edge cases covered: compression, decompression, serialization, token estimation, active voice transformation
 
 ### Repository Status
+- **Visibility**: PUBLIC ✅
 - **Branch**: master
 - **Status**: Clean, up to date with origin/master
 - **Last commits**:
+  - `bf7eb33`: docs: add CONTINUE_HERE.md with project status and next steps (local)
+  - `a3128f5`: docs: add audit continuation notes (remote, merged)
   - `a7282e3`: chore: cleanup for public v0.1.0 release
   - `c94b84c`: docs: update CONTINUE_HERE — audit complete, ready to publish
   - `9a8f381`: docs: update CONTINUE_HERE.md — abi3-py312→abi3-py310 is the actual fix
@@ -69,33 +72,103 @@
 
 ---
 
+## Audit Findings (Non-blocking Polish Items)
+
+### Priority Items - To Fix Before PyPI Publish
+
+1. **`pyproject.toml` missing PyPI metadata**
+   - Missing: `description`, `authors`, `requires-python`, `readme`, `classifiers`
+   - Impact: Required for PyPI publishing and crate registration
+   - Fix: Add standard PyPI metadata to pyproject.toml
+
+2. **Duplicate verb entries in `transform_active_voice` HashMap** (`src/lib.rs:74-193`)
+   - Duplicates found: `broken/broke` (lines 112, 128), `drawn/drew` (109, 132), `drunk/drank` (114, 133), plus several others
+   - Impact: HashMap silently overwrites, so no functional bug, but wastes code and confuses readers
+   - Fix: Remove duplicate entries, keep only first occurrence
+
+3. **`normalize_tense` dead code** (`src/lib.rs:231-236`)
+   - Has `#[allow(dead_code)]` stub that's never called
+   - Impact: Code bloat, unclear intent
+   - Fix: Either implement present tense normalization, remove function, or add TODO comment
+
+4. **`conftest.py` fragile venv path** (`tests/conftest.py:13`)
+   - Assumes `.venv/lib/python*/site-packages` glob
+   - Impact: Breaks for `uv`/`pixi`/`nix` package managers
+   - Fix: Use more robust path detection or rely on Python import path
+
+### Low Priority - Nice to Have
+
+5. **`cargo test` fails** (expected PyO3 cdylib limitation)
+   - Impact: Not a bug - PyO3 `cdylib` requires Python runtime; tests run via `pytest`
+   - Fix: Update CONTRIBUTING.md to note "tests run via `pytest`, not `cargo test`"
+
+---
+
+## Current Test Results
+
+- ✅ `cargo fmt --check`: PASS
+- ✅ `cargo clippy -- -D warnings`: PASS
+- ✅ `maturin develop`: PASS
+- ✅ `pytest tests/ -v`: 58/58 PASS
+- ⚠️  `cargo test`: FAILS (expected PyO3 cdylib limitation)
+
+---
+
 ## Next Steps
 
-### Option A: Publish to Public (Recommended)
-The repository is ready for public release. Actions needed:
+### Option A: Fix Audit Items and Publish to PyPI (Recommended)
+The repository is public and production-ready. To publish to PyPI:
 
-1. **Verify repository visibility** on GitHub:
-   ```bash
-   gh repo view ether-btc/rust-cave-001 --json visibility
-   gh repo edit ether-btc/rust-cave-001 --visibility public
+1. **Fix pyproject.toml metadata** (Priority 1)
+   ```toml
+   [project]
+   name = "rust-cave-001"
+   description = "Caveman Compression for LLM token reduction"
+   authors = ["ether-btc <...>"]
+   requires-python = ">=3.10"
+   readme = "README.md"
+   classifiers = [
+       "Development Status :: 4 - Beta",
+       "License :: OSI Approved :: MIT License",
+       "Programming Language :: Python :: 3",
+       "Programming Language :: Python :: 3.10",
+       "Programming Language :: Python :: 3.11",
+       "Programming Language :: Python :: 3.12",
+       "Programming Language :: Python :: 3.13",
+   ]
    ```
 
-2. **Publish to crates.io** (optional, for Rust ecosystem):
-   ```bash
-   cargo publish
-   ```
-   - Requires: crates.io account + API token
-   - Note: This is a Python-focused project (PyO3), so crates.io may not be primary target
+2. **Remove duplicate verb entries** (Priority 2)
+   - Edit `src/lib.rs:74-193`, remove duplicate HashMap keys
 
-3. **Publish to PyPI** (primary distribution channel):
+3. **Decide on normalize_tense** (Priority 3)
+   - Option A: Remove function entirely
+   - Option B: Implement full present tense normalization
+   - Option C: Add `#[allow(dead_code)]` with TODO comment
+
+4. **Publish to PyPI**:
    ```bash
+   # Create PyPI account and get API token
    maturin publish
    ```
    - Requires: PyPI account + API token
    - Builds wheels for all platforms
    - Most important distribution channel for Python users
 
-### Option B: Continue Development
+### Option B: Skip PyPI, Use Git Distribution
+If PyPI metadata fix is deferred:
+
+1. **Update README** to document git install method
+2. **Add release tags** on GitHub for version management
+3. **Direct users to install from source**:
+   ```bash
+   pip install maturin
+   git clone https://github.com/ether-btc/rust-cave-001.git
+   cd rust-cave-001
+   maturin develop --release
+   ```
+
+### Option C: Continue Development
 If more features are needed before publishing:
 
 1. **Add benchmark suite** - Measure compression ratios on real datasets
@@ -104,7 +177,7 @@ If more features are needed before publishing:
 4. **Add CLI tool** - Command-line interface for non-Python users
 5. **Multi-language support** - Non-English text handling
 
-### Option C: Integration Projects
+### Option D: Integration Projects
 Connect RUST-CAVE-001 to other projects:
 
 1. **caveman-compression** (Python reference implementation)
@@ -155,13 +228,18 @@ maturin develop --release
 gh run list --repo ether-btc/rust-cave-001
 ```
 
+### Verify repo visibility:
+```bash
+gh repo view ether-btc/rust-cave-001 --json visibility
+```
+
 ---
 
 ## Memory Updates Needed
 
-- RUST-CAVE-001 is production ready (58/58 tests passing)
+- RUST-CAVE-001 is PUBLIC and production ready (58/58 tests passing)
 - All commits pushed to origin/master
-- Ready for public publication (Option A: make public, publish to PyPI)
+- Ready for PyPI publish after fixing pyproject.toml metadata and removing duplicate verb entries
 - Integration with caveman-compression and hermes-lcm in progress
 
-**Last Updated**: 2025-05-12 18:48 UTC
+**Last Updated**: 2025-05-12 18:55 UTC (merged audit findings)
