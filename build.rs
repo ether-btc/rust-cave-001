@@ -2,10 +2,34 @@ use std::env;
 use std::process::Command;
 
 fn main() {
-    let python = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
+    // Respect PYO3_PYTHON if set (used by CI to target specific Python)
+    println!("cargo:rerun-if-env-changed=PYO3_PYTHON");
+    if let Ok(pyo3_python) = env::var("PYO3_PYTHON") {
+        let output = Command::new(&pyo3_python)
+            .args(["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY'), sysconfig.get_config_var('INCLUDEPY'))"])
+            .output();
 
+        if let Ok(output) = output {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            let parts: Vec<&str> = output_str.split_whitespace().collect();
+            if parts.len() >= 5 {
+                println!("cargo:include={}", parts[4]);
+                println!("cargo:cflag=-I{}", parts[4]);
+                println!("cargo:rustc-link-search=native={}", parts[2]);
+                println!(
+                    "cargo:rustc-env=PYO3_CROSS_PYTHON_VERSION={}.{}",
+                    parts[0], parts[1]
+                );
+                println!("cargo:rustc-env=PYO3_CROSS_LIB_DIR={}", parts[2]);
+                return;
+            }
+        }
+    }
+
+    // Default: use python3 from PATH
+    let python = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
     let output = Command::new(&python)
-        .args(["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var(\"LIBDIR\"), sysconfig.get_config_var(\"LDLIBRARY\"), sysconfig.get_config_var(\"INCLUDEPY\"))"])
+        .args(["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var('LIBDIR'), sysconfig.get_config_var('LDLIBRARY'), sysconfig.get_config_var('INCLUDEPY'))"])
         .output()
         .expect("Failed to execute python. Make sure Python development headers are installed.");
 
