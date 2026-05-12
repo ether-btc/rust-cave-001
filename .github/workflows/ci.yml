@@ -19,12 +19,11 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
 
       - name: Install Python dependencies
         run: pip install maturin pytest
-
-      - name: Install Python development headers
-        run: sudo apt-get update && sudo apt-get install -y python3-dev
 
       - name: Check Rust formatting
         run: cargo fmt --check
@@ -33,11 +32,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build and install
-        env:
-          PYTHON: python3.10
-        run: |
-          maturin build --release --auditwheel skip
-          pip install --force-reinstall --break-system-packages target/wheels/*.whl
+        run: pip install --force-reinstall --editable . --no-build-isolation
 
       - name: Run Python tests
         run: pytest tests/ -v
