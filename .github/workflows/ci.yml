@@ -33,8 +33,8 @@ jobs:
 
       - name: Build and install
         env:
-          MATURIN_PYTHON: python3.10
-        run: maturin build --release --auditwheel skip -o dist/ -i python3.10
+          PYO3_PYTHON: python3.10
+        run: maturin build --release --auditwheel skip -o dist/
 
       - name: Install built wheel
         run: pip install dist/*.whl --force-reinstall --no-deps
