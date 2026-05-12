@@ -33,9 +33,11 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build and install
+        env:
+          MATURIN_BUILD_SKIP_AUDITWHEEL: "1"
         run: |
           maturin build --release
-          pip install --force-reinstall target/wheels/*.whl
+          pip install --force-reinstall --break-system-packages target/wheels/*.whl
 
       - name: Run Python tests
         run: pytest tests/ -v
