@@ -218,7 +218,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
             });
 
         // Strip trailing punctuation from agent before inserting into output
-        let agent_trimmed = agent.trim_end_matches(|c| c == '.' || c == '!' || c == '?');
+        let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
         // Return: "agent verb_past the subject"
         format!("{} {} the {}", agent_trimmed, verb_past, subject)
     });

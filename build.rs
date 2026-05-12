@@ -5,7 +5,7 @@ fn main() {
     let python = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
 
     let output = Command::new(&python)
-        .args(&["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var(\"LIBDIR\"), sysconfig.get_config_var(\"LDLIBRARY\"), sysconfig.get_config_var(\"INCLUDEPY\"))"])
+        .args(["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var(\"LIBDIR\"), sysconfig.get_config_var(\"LDLIBRARY\"), sysconfig.get_config_var(\"INCLUDEPY\"))"])
         .output()
         .expect("Failed to execute python. Make sure Python development headers are installed.");
 
