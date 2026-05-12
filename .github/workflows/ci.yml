@@ -33,7 +33,9 @@ jobs:
         run: cargo clippy -- -D warnings
 
       - name: Build and install
-        run: maturin develop
+        run: |
+          maturin build --release
+          pip install --force-reinstall target/wheels/*.whl
 
       - name: Run Python tests
         run: pytest tests/ -v
