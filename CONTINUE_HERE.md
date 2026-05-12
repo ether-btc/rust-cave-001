@@ -15,8 +15,13 @@ Commits:
 - hermes-agent: `1431032e1` → pushed to fork `https://github.com/ether-btc/hermes-agent`
 - Note: upstream (NousResearch/hermes-agent) push denied — PR needed
 
+## Session (2026-05-14)
+- PR filed: https://github.com/NousResearch/hermes-agent/pull/24174
+- All 58/58 tests passing, clean build
+- rust-cave-001 HEAD: `7cb9198`, Hermes fork: `1431032e1`
+- stealth-core: `a2a6a4b` (clean build)
+
 ## Remaining TODO:
-- Open PR to NousResearch/hermes-agent
 - Cross-platform testing (x86_64)
 - Expand verb conjugation map
 - Relax logical completeness to 1-word minimum (edge case)
