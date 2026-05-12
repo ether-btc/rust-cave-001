@@ -48,3 +48,7 @@ pyo3-0.*/
 # Local config
 .env
 .env.local
+
+# Internal docs
+PUBLIC_READINESS_PLAN.md
+

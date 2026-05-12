@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Pytest test suite for rust-cave-001.
 
-Run with: cd /srv/sync/projects/rust-cave-001 && source .venv/bin/activate && pytest tests/ -v
+Run with: cd rust-cave-001 && source .venv/bin/activate && pytest tests/ -v
 """
 
 import sys

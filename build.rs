@@ -1,23 +1,28 @@
-fn main() {
-    let python = "python3";
+use std::env;
+use std::process::Command;
 
-    let output = std::process::Command::new(python)
+fn main() {
+    let python = env::var("PYTHON").unwrap_or_else(|_| "python3".to_string());
+
+    let output = Command::new(&python)
         .args(&["-c", "import sys; import sysconfig; print(sys.version_info.major, sys.version_info.minor, sysconfig.get_config_var(\"LIBDIR\"), sysconfig.get_config_var(\"LDLIBRARY\"), sysconfig.get_config_var(\"INCLUDEPY\"))"])
         .output()
-        .expect("Failed to execute python");
+        .expect("Failed to execute python. Make sure Python development headers are installed.");
 
-    let output_str = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    let output_str = String::from_utf8_lossy(&output.stdout);
 
     if output.status.success() {
         let parts: Vec<&str> = output_str.split_whitespace().collect();
         if parts.len() >= 5 {
+            let major = parts[0];
+            let minor = parts[1];
             let libdir = parts[2];
             let ldlibrary = parts[3];
             let includepy = parts[4];
             let libname = ldlibrary.trim_start_matches("lib").trim_end_matches(".so");
 
-            let abi3_enabled = std::env::var("DEP_PYO3_ABI3").is_ok()
-                || std::env::var("DEP_PYO3_ABI3_PY312").is_ok();
+            let abi3_enabled =
+                env::var("DEP_PYO3_ABI3").is_ok() || env::var("DEP_PYO3_ABI3_PY312").is_ok();
 
             println!("cargo:include={}", includepy);
             println!("cargo:cflag=-I{}", includepy);
@@ -31,18 +36,27 @@ fn main() {
 
             println!(
                 "cargo:rustc-env=PYO3_CROSS_PYTHON_VERSION={}.{}",
-                parts[0], parts[1]
+                major, minor
             );
             println!("cargo:rustc-env=PYO3_CROSS_LIB_DIR={}", libdir);
             return;
         }
     }
 
-    // Fallback for Python 3.13 on RPi
-    println!("cargo:rustc-link-search=native=/usr/lib/aarch64-linux-gnu");
-    println!("cargo:rustc-link-lib=python3.13");
-    println!("cargo:include=/usr/include/python3.13");
-    println!("cargo:cflag=-I/usr/include/python3.13");
+    // Fallback: try common system paths
+    let fallback_paths = [
+        "/usr/lib/x86_64-linux-gnu",
+        "/usr/lib/aarch64-linux-gnu",
+        "/usr/lib",
+    ];
+
+    for path in &fallback_paths {
+        if std::path::Path::new(path).exists() {
+            println!("cargo:rustc-link-search=native={}", path);
+        }
+    }
+
+    println!("cargo:rustc-link-lib=python3");
     println!("cargo:rustc-env=PYO3_CROSS_PYTHON_VERSION=3.13");
-    println!("cargo:rustc-env=PYO3_CROSS_LIB_DIR=/usr/lib/aarch64-linux-gnu");
+    println!("cargo:rustc-env=PYO3_CROSS_LIB_DIR=/usr/lib");
 }
