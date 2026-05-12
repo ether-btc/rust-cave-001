@@ -11,6 +11,3 @@ crate-type = ["cdylib"]
 pyo3 = { version = "0.24.2", features=["extension-module","abi3"] }
 lz4 = "1.0"
 regex = "1.10.0"
-bincode = "1.0"
-serde = "1.0.228"
-serde_json = "1.0.149"

@@ -1,6 +1,9 @@
 # rust-cave-001
 
-A Rust + PyO3 library that compresses natural language text to reduce LLM token count while preserving factual content. Uses LZ4 compression combined with a rule-based text normalization pipeline.
+[![CI](https://github.com/ether-btc/rust-cave-001/actions/workflows/ci.yml/badge.svg)](https://github.com/ether-btc/rust-cave-001/actions)
+[![crates.io](https://img.shields.io/crates/v/rust-cave-001.svg)](https://crates.io/crates/rust-cave-001)
+
+A Rust + PyO3 library that compresses natural language text to reduce LLM token count while preserving factual content.
 
 ## What It Does
 
@@ -16,7 +19,7 @@ Output:
 "DB needs index queries slow. Adding index overhead."
 ```
 
-Token count: 23 → 8 (~65% reduction)
+Token count: 18 → 8 (~56% reduction)
 
 ## Installation
 
