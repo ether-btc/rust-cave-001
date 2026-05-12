@@ -9,8 +9,8 @@ use regex::Regex;
 /// Compress data using LZ4 algorithm
 pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
     let mode = CompressionMode::HIGHCOMPRESSION(level);
-    let compressed =
-        block::compress(data, Some(mode), true).map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
+    let compressed = block::compress(data, Some(mode), true)
+        .map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
     Ok(compressed)
 }
 
@@ -25,7 +25,8 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
 #[pyfunction]
 /// Estimate token count using regex pattern
 pub fn estimate_tokens(text: &str) -> PyResult<usize> {
-    let re = Regex::new(r"\b\w+\b").map_err(|e| exceptions::PyValueError::new_err(e.to_string()))?;
+    let re =
+        Regex::new(r"\b\w+\b").map_err(|e| exceptions::PyValueError::new_err(e.to_string()))?;
     let count = re.find_iter(text).count();
     Ok(count)
 }
@@ -249,7 +250,7 @@ fn split_into_sentences(text: &str) -> Vec<String> {
 
     while let Some(c) = chars.next() {
         current.push(c);
-        
+
         // Check for sentence-ending punctuation followed by space or end of string
         if c == '.' || c == '!' || c == '?' {
             // Look ahead: if next char is whitespace or end, this is a sentence boundary
@@ -350,12 +351,12 @@ fn eliminate_connectives(text: &str) -> String {
 fn enforce_word_limit(text: &str) -> String {
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
-    
+
     // If already within limit, return as is
     if word_count <= 5 {
         return text.to_string();
     }
-    
+
     // Try to split on commas first
     if text.contains(',') {
         // Take the first clause (before the first comma)
@@ -366,7 +367,7 @@ fn enforce_word_limit(text: &str) -> String {
             }
         }
     }
-    
+
     // If no comma or comma split didn't give good length, take first 5 words
     let mut result_words = Vec::new();
     for word in words {
@@ -376,7 +377,7 @@ fn enforce_word_limit(text: &str) -> String {
             break;
         }
     }
-    
+
     result_words.join(" ")
 }
 
@@ -385,25 +386,25 @@ fn apply_caveman_rules(text: &str) -> PyResult<String> {
     // 1. Split into sentences (if multiple)
     let sentences = split_into_sentences(text);
     let mut processed_sentences = Vec::new();
-    
+
     for sentence in sentences {
         let mut result = sentence;
-        
+
         // 2. Active voice transformation
         result = transform_active_voice(&result)?;
-        
+
         // 3. Remove articles
         result = remove_articles(&result);
-        
+
         // 4. Remove intensifiers
         result = remove_intensifiers(&result);
-        
+
         // 5. Remove connectives
         result = eliminate_connectives(&result);
-        
+
         // 6. Enforce word limit
         result = enforce_word_limit(&result);
-        
+
         // 7. Check logical completeness (at least 2 words)
         let min_words = 2;
         let word_count = result.split_whitespace().count();
@@ -412,10 +413,10 @@ fn apply_caveman_rules(text: &str) -> PyResult<String> {
                 "Text lacks logical completeness - please provide complete sentences",
             ));
         }
-        
+
         processed_sentences.push(result);
     }
-    
+
     // Join sentences back together
     Ok(processed_sentences.join(" "))
 }
@@ -486,11 +487,11 @@ mod tests {
     fn test_remove_articles() {
         let result1 = remove_articles("The database needs an index");
         assert!(!result1.to_lowercase().contains("the"));
-        
+
         let result2 = remove_articles("An apple a day");
         assert!(!result2.contains(" a "));
         assert!(!result2.contains(" A "));
-        
+
         let result3 = remove_articles("A test");
         assert!(!result3.contains(" a "));
         assert!(!result3.contains(" A "));
