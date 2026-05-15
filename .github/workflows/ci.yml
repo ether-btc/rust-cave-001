@@ -50,8 +50,8 @@ jobs:
       - name: Check Rust clippy
         run: cargo clippy -- -D warnings
 
-      - name: Rust tests
-        run: cargo test
+      - name: Rust tests (via maturin)
+        run: maturin test
 
       - name: Build and install
         env:
