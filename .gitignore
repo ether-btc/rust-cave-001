@@ -51,5 +51,5 @@ pyo3-0.*/
 # Internal docs
 PUBLIC_READINESS_PLAN.md
 
-# Local cargo build config (target-dir on USB)
+# Local Cargo build config (target-dir on USB)
 .cargo/
