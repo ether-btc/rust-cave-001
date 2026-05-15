@@ -42,7 +42,9 @@ jobs:
             pip-
 
       - name: Install Python dependencies
-        run: pip install maturin pytest
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq python3-dev
+          pip install --quiet maturin pytest
 
       - name: Check Rust formatting
         run: cargo fmt --check
@@ -50,8 +52,8 @@ jobs:
       - name: Check Rust clippy
         run: cargo clippy -- -D warnings
 
-      - name: Rust tests (via maturin)
-        run: maturin test
+      - name: Rust tests
+        run: cargo test
 
       - name: Build and install
         env:
