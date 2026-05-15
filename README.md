@@ -98,17 +98,19 @@ Applies bincode serialization then LZ4 compression.
 
 Decompresses then deserializes: the inverse of `serialize_compressed`.
 
-## The 7 Compression Rules
+## The 9 Compression Rules
 
-Applied in order by `compress()`:
+Applied in order by `compress()` (based on [Caveman Compression SPEC](https://github.com/wilpel/caveman-compression) by wilpel):
 
 1. **Sentence splitting** — Split on `.`, `!`, `?`, then process each sentence independently
-2. **Word limit** — Truncate to 5 words per sentence; split on comma first if possible
-3. **Connective elimination** — Remove `because`, `however`, `therefore`, `but` (case-insensitive)
-4. **Active voice transform** — Convert passive ("was written by") to active ("wrote") using a verb conjugation map with 60+ irregular verbs
+2. **Pronoun resolution** — Replace ambiguous pronouns (`it`, `they`, `them`) with preceding noun when multiple candidates exist
+3. **Active voice transform** — Convert passive ("was written by") to active ("wrote") using a verb conjugation map with 60+ irregular verbs
+4. **Present tense normalization** — Convert past-tense verbs to present tense (e.g., "threw" → "throw", "wrote" → "write") using a 100+ verb conjugation map
 5. **Intensifier removal** — Remove `very`, `extremely`, `quite`, `rather`, `really`, `somewhat`
 6. **Article removal** — Remove `the`, `a`, `an`, `this` (unless removal would leave fewer than 3 words)
-7. **Logical completeness** — Reject output with fewer than 2 words
+7. **Connective elimination** — Remove `because`, `however`, `therefore`, `but` (case-insensitive)
+8. **Word limit** — Truncate to 5 words per sentence; split on comma first if possible
+9. **Logical completeness** — Reject output with fewer than 2 words
 
 ## Building from Source
 

@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rust-cave-001"
-version = "0.1.0"
+version = "0.2.0"
 description = "High-performance text compression for Hermes Agent — Rust-backed Python bindings for sentence-aware compression, deduplication, and payload optimization."
 readme = "README.md"
 license = { text = "MIT" }

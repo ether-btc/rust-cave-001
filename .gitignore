@@ -1,57 +1,55 @@
-     1|# Rust
-     2|/target/
-     3|**/*.rs.bk
-     4|*.pdb
-     5|
-     6|# Python
-     7|__pycache__/
-     8|*.py[cod]
-     9|*$py.class
-    10|*.so
-    11|.Python
-    12|build/
-    13|develop-eggs/
-    14|dist/
-    15|downloads/
-    16|eggs/
-    17|.eggs/
-    18|lib/
-    19|lib64/
-    20|parts/
-    21|sdist/
-    22|var/
-    23|wheels/
-    24|*.egg-info/
-    25|.installed.cfg
-    26|*.egg
-    27|
-    28|# Virtual environments
-    29|.venv/
-    30|venv/
-    31|ENV/
-    32|env/
-    33|
-    34|# PyO3
-    35|pyo3-0.*/
-    36|
-    37|# IDE
-    38|.vscode/
-    39|.idea/
-    40|*.swp
-    41|*.swo
-    42|
-    43|# Testing
-    44|.pytest_cache/
-    45|/test_remove_articles/
-    46|
-    47|# Local config
-    48|.env
-    49|.env.local
-    50|
-    51|# Internal docs
-    52|PUBLIC_READINESS_PLAN.md
-    53|
-    54|
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# PyO3
+pyo3-0.*/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+.pytest_cache/
+/test_remove_articles/
+
+# Local config
+.env
+.env.local
+
+# Internal docs
+PUBLIC_READINESS_PLAN.md
+
 # Local cargo build config (target-dir on USB)
 .cargo/
-__pycache__/

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-05-15
+
+### Added
+- **Present tense normalization** — `normalize_present_tense()` (SPEC Rule 4) converts past-tense verbs to present tense using a reverse conjugation map of 100+ verbs. Un-dead-coded from `#[allow(dead_code)]`.
+- **Pronoun resolution** — `resolve_pronouns()` (SPEC Rule 8) replaces ambiguous pronouns (`it`, `they`, `them`) with preceding noun when 2+ candidates exist.
+- **ATTRIBUTION.md** — Properly credits wilpel/caveman-compression SPEC, JuliusBrussee/caveman, claudioemmanuel/squeez, and all third-party crate dependencies.
+- **`normalize_present_tense()` exposed** as a Python-callable function.
+
+### Changed
+- Pipeline now applies 9 rules (was 7): pronoun resolution → active voice → present tense → articles → intensifiers → connectives → word limit → completeness check.
+- Cargo.toml: v0.2.0, added authors and description.
+- pyproject.toml: v0.2.0.
+- README: Updated rules from 7 → 9, added SPEC attribution link.
+
+### Fixed
+- Benchmark sanity check: accepts both past and present tense passive voice output.
+
 ## [0.1.1] - 2026-05-15
 
 ### Added

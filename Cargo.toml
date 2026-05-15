@@ -1,7 +1,9 @@
 [package]
 name = "rust-cave-001"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+description = "Deterministic text compression for LLM token reduction — Rust-native Caveman Compression with Python bindings"
+authors = ["ether-btc"]
 
 [lib]
 name = "rust_cave_001"

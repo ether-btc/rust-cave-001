@@ -226,12 +226,86 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     Ok(result.to_string())
 }
 
-/// Normalize text to present tense
-#[allow(dead_code)]
-fn normalize_tense(text: &str) -> PyResult<String> {
-    // Pattern: verbs ending in "ed" -> base form (simplified)
-    let pattern = Regex::new(r"(\w+)ed\b").unwrap();
-    let result = pattern.replace_all(text, "$1");
+/// Normalize past-tense verbs to present tense
+#[pyfunction]
+fn normalize_present_tense(text: &str) -> PyResult<String> {
+    // Map of simple past → present base form (reverse of the conjugation map)
+    let present_tense_map: std::collections::HashMap<&str, &str> = [
+        ("threw", "throw"), ("ate", "eat"), ("wrote", "write"), ("saw", "see"),
+        ("did", "do"), ("gave", "give"), ("took", "take"), ("made", "make"),
+        ("found", "find"), ("told", "tell"), ("called", "call"), ("used", "use"),
+        ("asked", "ask"), ("wanted", "want"), ("needed", "need"), ("looked", "look"),
+        ("worked", "work"), ("played", "play"), ("moved", "move"), ("lived", "live"),
+        ("believed", "believe"), ("happened", "happen"), ("changed", "change"),
+        ("showed", "show"), ("watched", "watch"), ("followed", "follow"),
+        ("stopped", "stop"), ("brought", "bring"), ("heard", "hear"), ("held", "hold"),
+        ("sent", "send"), ("built", "build"), ("understood", "understand"),
+        ("drew", "draw"), ("grew", "grow"), ("flew", "fly"), ("broke", "break"),
+        ("sang", "sing"), ("drank", "drink"), ("sank", "sink"), ("spun", "spin"),
+        ("ran", "run"), ("began", "begin"), ("chose", "choose"), ("came", "come"),
+        ("drove", "drive"), ("fell", "fall"), ("fed", "feed"), ("felt", "feel"),
+        ("fought", "fight"), ("forgot", "forget"), ("forgave", "forgive"),
+        ("froze", "freeze"), ("got", "get"), ("went", "go"), ("hid", "hide"),
+        ("kept", "keep"), ("knew", "know"), ("led", "lead"), ("learned", "learn"),
+        ("left", "leave"), ("lent", "lend"), ("lay", "lie"), ("lost", "lose"),
+        ("meant", "mean"), ("met", "meet"), ("paid", "pay"), ("rode", "ride"),
+        ("rang", "ring"), ("said", "say"), ("sold", "sell"), ("sat", "sit"),
+        ("slept", "sleep"), ("spoke", "speak"), ("spent", "spend"), ("stood", "stand"),
+        ("swam", "swim"), ("taught", "teach"), ("thought", "think"), ("wore", "wear"),
+        ("won", "win"), ("regretted", "regret"), ("forgotten", "forget"),
+        ("forgiven", "forgive"), ("frozen", "freeze"), ("gotten", "get"),
+        ("hidden", "hide"), ("ridden", "ride"), ("rung", "ring"),
+        ("shown", "show"), ("spoken", "speak"), ("swum", "swim"),
+        ("worn", "wear"), ("written", "write"), ("driven", "drive"),
+        ("eaten", "eat"), ("fallen", "fall"), ("flown", "fly"),
+        ("given", "give"), ("grown", "grow"), ("known", "know"),
+        ("lain", "lie"), ("ridden", "ride"), ("risen", "rise"),
+        ("shaken", "shake"), ("shrunk", "shrink"), ("sung", "sing"),
+        ("sunk", "sink"), ("stolen", "steal"), ("thrown", "throw"),
+        ("taken", "take"), ("torn", "tear"), ("woken", "wake"),
+        ("broken", "break"), ("chosen", "choose"), ("drawn", "draw"),
+        ("drunk", "drink"), ("forgiven", "forgive"), ("frozen", "freeze"),
+        // Same-form verbs (past == present == base)
+        ("cost", "cost"), ("cut", "cut"), ("hit", "hit"), ("hurt", "hurt"),
+        ("let", "let"), ("put", "put"), ("read", "read"), ("set", "set"),
+        ("shut", "shut"), ("spread", "spread"),
+    ].iter().cloned().collect();
+
+    let word_pattern = Regex::new(r"\b(\w+)\b").unwrap();
+    let result = word_pattern.replace_all(text, |caps: &regex::Captures| {
+        let word = &caps[1];
+        let lower = word.to_lowercase();
+
+        // Check the present tense map (case-insensitive lookup)
+        if let Some(&present) = present_tense_map.get(lower.as_str()) {
+            // Preserve original capitalization
+            if word.starts_with(|c: char| c.is_uppercase()) && !lower.chars().all(|c| c.is_uppercase()) {
+                let mut capitalized = String::with_capacity(present.len());
+                let mut chars = present.chars();
+                if let Some(first) = chars.next() {
+                    capitalized.push(first.to_uppercase().next().unwrap_or(first));
+                    capitalized.push_str(chars.as_str());
+                }
+                return capitalized;
+            }
+            return present.to_string();
+        }
+
+        // For regular verbs ending in "ed": try stripping "ed"
+        // Guard: don't strip if remaining word < 3 chars (e.g., "ed" → ""), 
+        // or if the word ends in "eed" (e.g., "speed" → not "spe")
+        if lower.ends_with("ed") && lower.len() > 3 && !lower.ends_with("eed") {
+            let stem = &lower[..lower.len() - 2];
+            if stem.len() >= 2 {
+                // Handle double consonant: "stopped" → "stop", not "stopp"
+                // For v1, just strip "ed" — simple and effective for most cases
+                return stem.to_string();
+            }
+        }
+
+        word.to_string()
+    });
+
     Ok(result.to_string())
 }
 
@@ -381,10 +455,75 @@ fn enforce_word_limit(text: &str) -> String {
     result_words.join(" ")
 }
 
+/// Handle pronoun ambiguity (SPEC Rule 8)
+/// Keeps short pronouns when unambiguous; replaces with preceding noun when ambiguous.
+/// Simplified v1: handles "it" — if previous sentence has 2+ noun-like words (>3 chars),
+/// replace "it" with the most recent one.
+fn resolve_pronouns(sentences: &mut Vec<String>) {
+    let pronouns = ["it", "they", "them", "this", "that"];
+    let stop_words = [
+        "the", "a", "an", "this", "that", "these", "those", "is", "was", "are", "were",
+        "be", "been", "being", "have", "has", "had", "do", "does", "did", "will", "would",
+        "could", "should", "may", "might", "can", "shall", "not", "no", "nor", "but",
+        "if", "or", "and", "because", "however", "therefore", "very", "extremely",
+        "quite", "rather", "really", "somewhat",
+    ];
+
+    let is_noun = |word: &str| -> bool {
+        let lower = word.trim_end_matches(['.', ',', '!', '?']).to_lowercase();
+        lower.len() > 3 && !stop_words.contains(&lower.as_str())
+    };
+
+    for i in 1..sentences.len() {
+        let prev_words: Vec<&str> = sentences[i - 1].split_whitespace().collect();
+        let current_sentence = sentences[i].clone();
+        let current_words: Vec<&str> = current_sentence.split_whitespace().collect();
+
+        // Find nouns in previous sentence (candidates for pronoun reference)
+        let noun_candidates: Vec<&str> = prev_words.iter()
+            .filter(|w| is_noun(w))
+            .copied()
+            .collect();
+
+        // Check if current sentence starts with or contains a pronoun
+        let mut needs_replace = false;
+        let mut pronoun_idx = None;
+        for (j, word) in current_words.iter().enumerate() {
+            let clean = word.trim_end_matches(['.', ',', '!', '?']).to_lowercase();
+            if pronouns.contains(&clean.as_str()) && noun_candidates.len() >= 2 {
+                needs_replace = true;
+                pronoun_idx = Some(j);
+                break;
+            }
+        }
+
+        if needs_replace {
+            if let Some(last_noun) = noun_candidates.last() {
+                let replacement = last_noun.trim_end_matches(['.', ',', '!', '?']);
+                let new_words: Vec<String> = current_words
+                    .iter()
+                    .enumerate()
+                    .map(|(j, w)| {
+                        if Some(j) == pronoun_idx {
+                            replacement.to_string()
+                        } else {
+                            w.to_string()
+                        }
+                    })
+                    .collect();
+                sentences[i] = new_words.join(" ");
+            }
+        }
+    }
+}
+
 // Apply all Caveman compression rules in the correct order
 fn apply_caveman_rules(text: &str) -> PyResult<String> {
     // 1. Split into sentences (if multiple)
     let sentences = split_into_sentences(text);
+    // 1.5 Resolve pronoun ambiguity (SPEC Rule 8) — operates on sentence list
+    let mut sentences = sentences;
+    resolve_pronouns(&mut sentences);
     let mut processed_sentences = Vec::new();
 
     for sentence in sentences {
@@ -392,6 +531,9 @@ fn apply_caveman_rules(text: &str) -> PyResult<String> {
 
         // 2. Active voice transformation
         result = transform_active_voice(&result)?;
+
+        // 2.5 Present tense normalization (SPEC Rule 4)
+        result = normalize_present_tense(&result)?;
 
         // 3. Remove articles
         result = remove_articles(&result);
@@ -469,6 +611,7 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(deserialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
     module.add_function(wrap_pyfunction!(compress, module)?)?;
+    module.add_function(wrap_pyfunction!(normalize_present_tense, module)?)?;
     Ok(())
 }
 

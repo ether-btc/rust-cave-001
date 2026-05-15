@@ -294,7 +294,7 @@ class TestCompress:
         result = compress("The song was sung by the choir.")
         # Agent should NOT have trailing period: 'choir.' not in output
         assert "choir." not in result
-        assert "choir sang" in result
+        assert "choir sing" in result
 
     def test_connective_no_word_merge(self):
         """Connective removal leaves space, preventing word merging."""
@@ -359,8 +359,8 @@ class TestCompress:
     def test_active_voice_in_compress(self):
         """Rule 4: Active voice transformation applied in compress()."""
         cases = [
-            ("The ball was thrown by John", "John threw ball"),
-            ("The report was created by the team", "team made report"),
+            ("The ball was thrown by John", "John throw ball"),
+            ("The report was created by the team", "team make report"),
         ]
         for inp, expected in cases:
             result = compress(inp)
