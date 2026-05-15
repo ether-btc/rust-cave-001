@@ -54,3 +54,4 @@
     54|
 # Local cargo build config (target-dir on USB)
 .cargo/
+__pycache__/
