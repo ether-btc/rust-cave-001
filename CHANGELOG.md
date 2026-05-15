@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-05-15
+
+### Added
+- Benchmark suite (benchmarks/benchmark.py) — measures NLP compression ratios, LZ4 binary compression, and combined pipeline performance across 9 text types
+- BENCHMARKS.md with detailed results and performance characteristics
+- Sample texts dataset (benchmarks/sample_texts.py) for reproducible benchmarking
+
+### Changed
+- README: Added benchmarks section, removed "No benchmark suite" known limitation
+
 ## [0.1.0] - 2026-05-12
 
 ### Added

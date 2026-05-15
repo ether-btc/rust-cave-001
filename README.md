@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/ether-btc/rust-cave-001/actions/workflows/ci.yml/badge.svg)](https://github.com/ether-btc/rust-cave-001/actions)
 [![crates.io](https://img.shields.io/crates/v/rust-cave-001.svg)](https://crates.io/crates/rust-cave-001)
+[![Benchmarks](BENCHMARKS.md)](BENCHMARKS.md)
 
 A Rust + PyO3 library that compresses natural language text to reduce LLM token count while preserving factual content.
 
@@ -140,12 +141,17 @@ pytest tests/ -v
 - Regex 1.10 (text processing)
 - Maturin (Python packaging)
 
+## Benchmarks
+
+See [BENCHMARKS.md](BENCHMARKS.md) for detailed performance data across 9 text types and LZ4 binary compression benchmarks.
+
+**TL;DR:** Average token reduction of 48-55% across typical texts, call time ~7.4ms on RPi 5 (aarch64).
+
 ## Known Limitations
 
 - Verb conjugation map covers ~60 irregular verbs; regular verbs fall back to stripping the "ed" suffix
 - Two-word sentences after processing are rejected as logically incomplete
 - Not designed for code, structured data, or non-English text
-- No benchmark suite; compression ratios vary significantly by input type
 
 ## Contributing
 
