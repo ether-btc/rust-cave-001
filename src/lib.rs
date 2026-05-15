@@ -816,7 +816,7 @@ mod tests {
         // so the safety guard preserves the original. Test that guard works.
         let result2 = remove_articles("An apple a day");
         assert!(!result2.contains("an ")); // capital "An" is removed
-        // lowercase "a" is protected by the 3-word minimum guard
+                                           // lowercase "a" is protected by the 3-word minimum guard
         assert!(result2.contains("a day"));
 
         let result3 = remove_articles("A test");
