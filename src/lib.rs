@@ -265,6 +265,14 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
         ("taken", "take"), ("torn", "tear"), ("woken", "wake"),
         ("broken", "break"), ("chosen", "choose"), ("drawn", "draw"),
         ("drunk", "drink"), ("forgiven", "forgive"), ("frozen", "freeze"),
+        // E-drop regular verbs (base ends in "e", past adds "d")
+        ("agreed", "agree"), ("planned", "plan"), ("merged", "merge"),
+        ("cached", "cache"), ("parsed", "parse"), ("loaded", "load"),
+        ("saved", "save"), ("proved", "prove"), ("loved", "love"),
+        ("liked", "like"), ("hoped", "hope"), ("cared", "care"),
+        ("shared", "share"), ("stared", "stare"), ("dated", "date"),
+        ("noted", "note"), ("quoted", "quote"), ("wasted", "waste"),
+        ("tasted", "taste"), ("hated", "hate"), ("created", "create"),
         // Same-form verbs (past == present == base)
         ("cost", "cost"), ("cut", "cut"), ("hit", "hit"), ("hurt", "hurt"),
         ("let", "let"), ("put", "put"), ("read", "read"), ("set", "set"),
@@ -292,14 +300,39 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
         }
 
         // For regular verbs ending in "ed": try stripping "ed"
-        // Guard: don't strip if remaining word < 3 chars (e.g., "ed" → ""), 
-        // or if the word ends in "eed" (e.g., "speed" → not "spe")
-        if lower.ends_with("ed") && lower.len() > 3 && !lower.ends_with("eed") {
+        // Guard: don't strip if remaining word < 3 chars (e.g., "ed" → ""),
+        // or if the word ends in "eed" with stem < 4 chars (e.g., "speed" → not "spe")
+        if lower.ends_with("ed") && lower.len() > 3 {
             let stem = &lower[..lower.len() - 2];
             if stem.len() >= 2 {
-                // Handle double consonant: "stopped" → "stop", not "stopp"
-                // For v1, just strip "ed" — simple and effective for most cases
-                return stem.to_string();
+                // Handle "eed" words: only strip if stem is long enough (e.g., "agreed" → "agree")
+                let skip_eed = lower.ends_with("eed") && stem.len() < 4;
+                if !skip_eed {
+                    // For words like "included", "provided", "decided":
+                    // The base form ends in "e" (include, provide, decide).
+                    // Stripping "ed" loses too much ("includ"). Try stripping "d" instead.
+                    // Only apply when the letter before "ded"/"ted" is a vowel.
+                    // This correctly handles "sorted" → "sort" (r is consonant → skip)
+                    // while handling "included" → "include" (u is vowel → strip d).
+                    let second_last = if lower.len() >= 4 {
+                        lower.as_bytes()[lower.len() - 4] as char
+                    } else {
+                        ' ' // not enough chars
+                    };
+                    let is_vowel = |c: char| -> bool { matches!(c, 'a' | 'e' | 'i' | 'o' | 'u') };
+                    
+                    if (lower.ends_with("ded") && is_vowel(second_last))
+                        || (lower.ends_with("ted") && is_vowel(second_last))
+                    {
+                        let e_stem = &lower[..lower.len() - 1]; // strip "d" not "ed"
+                        if e_stem.len() >= 2 {
+                            return e_stem.to_string();
+                        }
+                    }
+                    // Default: simple "ed" → "" stripping
+                    // (e.g., "stopped" → "stopp", "worked" → "work")
+                    return stem.to_string();
+                }
             }
         }
 
