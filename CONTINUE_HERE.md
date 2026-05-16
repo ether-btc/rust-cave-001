@@ -20,6 +20,7 @@ python3 benchmarks/benchmark.py
 | Repo | `github.com/ether-btc/rust-cave-001` (master) |
 | Latest commit | `ce9088c` — "feat: add input text classifier for adaptive compression strategies" |
 | Tags | v0.1.0, v0.1.1, v0.2.0, [v0.2.1](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.2.1) |
+| PyPI | [![PyPI](https://img.shields.io/pypi/v/rust-cave-001.svg)](https://pypi.org/project/rust-cave-001/) |
 | CI | Green — 66/66 tests, benchmarks 48.4% avg token reduction |
 | Current version | **v0.2.1** (deduplicated maps, clean docs, fresh wheel, input classifier built) |
 | Ceiling | 48.4% static — self-learning framework component (classifier) built, strategy selector next |

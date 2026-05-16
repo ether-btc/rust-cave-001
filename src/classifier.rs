@@ -83,7 +83,7 @@ pub fn classify(text: &str) -> TextType {
     let paren_density = (text.matches('(').count() as f64 * scale) as usize;
     let short_sentence_ratio = if sentence_count > 0.0 {
         let sentences: Vec<&str> = text
-            .split(|c: char| c == '.' || c == '!' || c == '?')
+            .split(['.', '!', '?'])
             .map(|s| s.trim())
             .filter(|s| !s.is_empty())
             .collect();
