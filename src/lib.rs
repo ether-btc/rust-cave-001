@@ -8,6 +8,8 @@ mod classifier;
 
 mod verb_maps;
 
+mod error;
+
 use std::collections::HashSet;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
@@ -190,7 +192,18 @@ fn is_logically_complete(text: &str) -> bool {
 }
 
 // Split text into sentences based on punctuation (. ! ?)
+// With basic abbreviation protection to avoid splitting on "Dr.", "U.S.A.", etc.
+// Uses OnceLock to compile the abbreviation regex once.
 fn split_into_sentences(text: &str) -> Vec<String> {
+    use std::sync::OnceLock;
+    
+    static ABBREVIATION_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let abbr_re = ABBREVIATION_PATTERN.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(dr|mr|mrs|ms|prof|sr|jr|st|ave|blvd|etc|vs|inc|ltd|co|dept|est|govt|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|u\.s\.?a?|e\.g|i\.e|al)\.$"
+        ).unwrap()
+    });
+    
     let mut sentences = Vec::new();
     let mut current = String::new();
     let mut chars = text.chars().peekable();
@@ -200,23 +213,27 @@ fn split_into_sentences(text: &str) -> Vec<String> {
 
         // Check for sentence-ending punctuation followed by space or end of string
         if c == '.' || c == '!' || c == '?' {
-            // Look ahead: if next char is whitespace or end, this is a sentence boundary
+            // Abbreviation check: if the word before '.' is a known abbreviation, don't split
+            if c == '.' {
+                let trimmed = current.trim();
+                if abbr_re.is_match(trimmed) {
+                    continue; // Not a sentence boundary
+                }
+            }
+            
+            // Look ahead: if next char is whitespace/end, this is a sentence boundary
             match chars.peek() {
                 Some(&next) if next.is_whitespace() => {
-                    // End of sentence - trim and add to list
                     sentences.push(current.trim().to_string());
                     current.clear();
-                    // Skip the whitespace
                     while let Some(_ws) = chars.next_if(|c| c.is_whitespace()) {}
                 }
                 None => {
-                    // End of string - add final sentence
                     sentences.push(current.trim().to_string());
                     current.clear();
                 }
                 _ => {
-                    // Not a sentence boundary (e.g., part of ellipsis "..." or abbreviation)
-                    // Continue building the current sentence
+                    // Not a boundary (e.g., part of "...", decimal number)
                 }
             }
         }
@@ -614,9 +631,7 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
         let min_words = 2;
         let word_count = result.split_whitespace().count();
         if word_count < min_words {
-            return Err(exceptions::PyValueError::new_err(
-                "Text lacks logical completeness - please provide complete sentences",
-            ));
+            return Err(crate::error::CompressionError::TooShort(result).into_pyerr());
         }
 
         processed_sentences.push(result);
@@ -655,9 +670,7 @@ pub fn preprocess_text(text: &str) -> PyResult<String> {
 
     // Check logical completeness
     if !is_logically_complete(&result) {
-        return Err(exceptions::PyValueError::new_err(
-            "Text lacks logical completeness - please provide complete sentences",
-        ));
+        return Err(crate::error::CompressionError::TooShort(result).into_pyerr());
     }
 
     Ok(result)
@@ -699,6 +712,8 @@ mod tests {
         assert!(is_logically_complete("Hello world"));
         assert!(!is_logically_complete(""));
         assert!(!is_logically_complete("Hello"));
+        assert!(!is_logically_complete("a"));
+        assert!(is_logically_complete("Testing logical completeness here"));
     }
 
     #[test]
@@ -706,17 +721,13 @@ mod tests {
         let result1 = remove_articles("The database needs an index");
         assert!(!result1.to_lowercase().contains("the"));
 
-        // "An apple a day" has 4 words; removing "An"+"a" leaves 2 (< 3 minimum)
-        // so the safety guard preserves the original. Test that guard works.
         let result2 = remove_articles("An apple a day");
-        assert!(!result2.contains("an ")); // capital "An" is removed
-                                           // lowercase "a" is protected by the 3-word minimum guard
+        assert!(!result2.contains("an "));
         assert!(result2.contains("a day"));
 
         let result3 = remove_articles("A test");
-        assert_eq!(result3, "A test"); // guard preserves 2-word input
+        assert_eq!(result3, "A test");
 
-        // Longer input: should remove articles
         let result4 = remove_articles("A big apple a day keeps the doctor");
         assert!(!result4.contains(" a "));
         assert!(!result4.contains(" A "));
@@ -726,9 +737,113 @@ mod tests {
     #[test]
     fn test_transform_active_voice() {
         let result = transform_active_voice("The ball was thrown by John").unwrap();
-        println!("Debug: result = '{}'", result);
         assert!(result.contains("John"));
         assert!(result.contains("threw"));
-        assert!(result.contains("the")); // transform_active_voice does NOT remove articles; that's done later in compress()
+        assert!(result.contains("the"));
+    }
+
+    #[test]
+    fn test_expand_contractions() {
+        assert_eq!(expand_contractions("don't"), "do not");
+        assert_eq!(expand_contractions("can't"), "cannot");
+        assert_eq!(expand_contractions("won't"), "will not");
+        assert_eq!(expand_contractions("it's"), "it is");
+        assert_eq!(expand_contractions("i'm"), "i am");
+        assert_eq!(expand_contractions("they're"), "they are");
+        assert_eq!(expand_contractions("i've"), "i have");
+        assert_eq!(expand_contractions("he'll"), "he will");
+        assert_eq!(expand_contractions("she'd"), "she would");
+        assert_eq!(expand_contractions("we'd have"), "we would have");
+        // No-op for regular text
+        assert_eq!(expand_contractions("hello world"), "hello world");
+        // Case handling — lowercase match (function is case-sensitive)
+        assert_eq!(expand_contractions("Don't"), "do not");
+        assert_eq!(expand_contractions("I'm here"), "i am here");
+    }
+
+    #[test]
+    fn test_expand_contractions_edge_cases() {
+        // Unicode — accented chars: function uses ASCII patterns, they pass through
+        assert_eq!(expand_contractions("café's good"), "café's good"); // no ASCII match
+        // Possessive 's — correctly NOT matched (only specific forms listed)
+        assert_eq!(expand_contractions("cat's tail"), "cat's tail");
+        // Multi-contraction sentence
+        assert_eq!(
+            expand_contractions("I don't think it's working"),
+            "I do not think it is working"
+        );
+        // Empty/near-empty
+        assert_eq!(expand_contractions(""), "");
+        assert_eq!(expand_contractions("x"), "x");
+        // Numbers with apostrophes
+        assert_eq!(expand_contractions("'80s"), "'80s"); // no match
+        // Already expanded
+        assert_eq!(expand_contractions("do not"), "do not");
+    }
+
+    #[test]
+    fn test_remove_intensifiers() {
+        let result = remove_intensifiers("The extremely fast query");
+        assert!(!result.contains("extremely"));
+
+        // Short sentence protection
+        assert_eq!(remove_intensifiers("very fast"), "very fast");
+
+        // Normal removal in long sentence
+        let result2 = remove_intensifiers("This is a really fast system indeed");
+        assert!(!result2.contains("really"));
+    }
+
+    #[test]
+    fn test_eliminate_connectives() {
+        assert!(!eliminate_connectives("Use index because query slow").contains("because"));
+        assert!(!eliminate_connectives("However the system is slow.").contains("however"));
+        assert!(!eliminate_connectives("Query slow therefore use index").contains("therefore"));
+        assert!(!eliminate_connectives("Index helps but uses space").contains("but"));
+        // No word merging
+        assert!(!eliminate_connectives("raining therefore we").contains("rainingtherefore"));
+    }
+
+    #[test]
+    fn test_enforce_word_limit() {
+        assert_eq!(enforce_word_limit("short text"), "short text");
+        let truncated = enforce_word_limit("This is a very long sentence that should be truncated");
+        assert!(truncated.split_whitespace().count() <= 5);
+        // Comma split
+        let result = enforce_word_limit("Take first clause, discard the rest of this sentence");
+        assert!(result.len() < 30);
+    }
+
+    #[test]
+    fn test_split_into_sentences() {
+        let result = split_into_sentences("Hello world. This is a test.");
+        assert_eq!(result.len(), 2);
+        assert_eq!(result[0], "Hello world.");
+        assert_eq!(result[1], "This is a test.");
+
+        let single = split_into_sentences("Just one sentence");
+        assert_eq!(single.len(), 1);
+
+        let empty = split_into_sentences("");
+        assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn test_split_abbreviation_protection() {
+        // Abbreviation "Dr." should NOT cause a split
+        let result = split_into_sentences("Dr. Smith went to the store.");
+        assert_eq!(result.len(), 1, "Abbreviation 'Dr.' should not split: {:?}", result);
+
+        // "U.S.A." should not cause splits
+        let result2 = split_into_sentences("The U.S.A. is a country.");
+        assert_eq!(result2.len(), 1, "'U.S.A.' should not split: {:?}", result2);
+
+        // "e.g." and "i.e." should not cause splits
+        let result3 = split_into_sentences("Use tools e.g. hammers.");
+        assert_eq!(result3.len(), 1, "'e.g.' should not split: {:?}", result3);
+
+        // Normal sentences still split correctly
+        let result4 = split_into_sentences("First sentence. Second sentence.");
+        assert_eq!(result4.len(), 2, "Normal sentences should split: {:?}", result4);
     }
 }
