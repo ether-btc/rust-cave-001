@@ -115,11 +115,15 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
 /// Normalize past-tense verbs to present tense
 #[pyfunction]
 fn normalize_present_tense(text: &str) -> PyResult<String> {
+    use std::sync::OnceLock;
+
     // Map of simple past → present base form (reverse of the conjugation map)
     // Uses the expanded verb_maps module (220 entries, v0.3.0)
     let present_tense_map = verb_maps::build_present_tense_map();
 
-    let word_pattern = Regex::new(r"\b(\w+)\b").unwrap();
+    static WORD_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let word_pattern = WORD_PATTERN.get_or_init(|| Regex::new(r"\b(\w+)\b").unwrap());
+
     let result = word_pattern.replace_all(text, |caps: &regex::Captures| {
         let word = &caps[1];
         let lower = word.to_lowercase();
@@ -186,8 +190,10 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
 
 /// Check logical completeness
 fn is_logically_complete(text: &str) -> bool {
+    use std::sync::OnceLock;
     // Simplified check: at least two words
-    let pattern = Regex::new(r"\b\w+\b\s+\b\w+\b").unwrap();
+    static PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = PATTERN.get_or_init(|| Regex::new(r"\b\w+\b\s+\b\w+\b").unwrap());
     pattern.is_match(text)
 }
 
@@ -224,7 +230,13 @@ fn split_into_sentences(text: &str) -> Vec<String> {
             // Look ahead: if next char is whitespace/end, this is a sentence boundary
             match chars.peek() {
                 Some(&next) if next.is_whitespace() => {
-                    sentences.push(current.trim().to_string());
+                    let trimmed = current.trim();
+                    // If sentence ends with "..." followed by more text, treat as
+                    // mid-ellipsis and don't split (e.g. "Hello... This" → one sentence)
+                    if trimmed.ends_with("...") {
+                        continue; // keep accumulating — ellipsis is not a terminal boundary
+                    }
+                    sentences.push(trimmed.to_string());
                     current.clear();
                     while let Some(_ws) = chars.next_if(|c| c.is_whitespace()) {}
                 }
@@ -233,7 +245,7 @@ fn split_into_sentences(text: &str) -> Vec<String> {
                     current.clear();
                 }
                 _ => {
-                    // Not a boundary (e.g., part of "...", decimal number)
+                    // Not a boundary (e.g., part of "..." or decimal number)
                 }
             }
         }
@@ -250,12 +262,18 @@ fn split_into_sentences(text: &str) -> Vec<String> {
 // Remove articles (the, a, an) from text
 // Short sentences where removal would produce <3 words are preserved unchanged
 fn remove_articles(text: &str) -> String {
+    use std::sync::OnceLock;
+
+    static ARTICLE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = ARTICLE_PATTERN.get_or_init(|| Regex::new(r"(?i)\b(this|the|a|an)\b").unwrap());
+    let collapse_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
+
     // Split into words to check length
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
 
     // Count articles that would be removed
-    let pattern = Regex::new(r"(?i)\b(this|the|a|an)\b").unwrap();
     let article_count = words.iter().filter(|w| pattern.is_match(w)).count();
 
     // If removal would leave less than 3 words, preserve unchanged
@@ -263,12 +281,10 @@ fn remove_articles(text: &str) -> String {
         return text.to_string();
     }
 
-    // Pattern to match articles at word boundaries (case-insensitive)
-    let pattern = Regex::new(r"(?i)\b(this|the|a|an)\b").unwrap();
+    // Apply article removal
     let result = pattern.replace_all(text, "").to_string();
 
     // Collapse multiple spaces into single space
-    let collapse_spaces = Regex::new(r"\s+").unwrap();
     let result = collapse_spaces.replace_all(&result, " ").to_string();
 
     // Trim extra spaces left by removal
@@ -374,11 +390,19 @@ fn expand_contractions(text: &str) -> String {
 
 // Remove copular "be" verbs (is, are, was, were, am, be, been, being) from text
 fn remove_copular_be(text: &str) -> String {
+    use std::sync::OnceLock;
+
+    static BE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let be_verb_pattern = BE_PATTERN.get_or_init(|| {
+        Regex::new(r"(?i)\b(is|are|was|were|am|be|been|being)\b").unwrap()
+    });
+    let re_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
+
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
 
     // Count "be" verbs that would be removed
-    let be_verb_pattern = Regex::new(r"(?i)\b(is|are|was|were|am|be|been|being)\b").unwrap();
     let be_count = words.iter().filter(|w| be_verb_pattern.is_match(w)).count();
 
     // If removal would leave less than 2 words, preserve unchanged
@@ -397,19 +421,26 @@ fn remove_copular_be(text: &str) -> String {
         })
         .to_string();
     // Collapse multiple spaces
-    let re_spaces = Regex::new(r"\s+").unwrap();
     re_spaces.replace_all(&result, " ").trim().to_string()
 }
 
 // Remove intensifiers (very, extremely, quite, rather, really, somewhat)
 // Short sentences where removal would produce <3 words are preserved unchanged
 fn remove_intensifiers(text: &str) -> String {
+    use std::sync::OnceLock;
+
+    static INTENSIFIER_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = INTENSIFIER_PATTERN.get_or_init(|| {
+        Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap()
+    });
+    let collapse_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
+
     // Split into words to check length
     let words: Vec<&str> = text.split_whitespace().collect();
     let word_count = words.len();
 
     // Count intensifiers that would be removed
-    let pattern = Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
     let intensifier_count = words.iter().filter(|w| pattern.is_match(w)).count();
 
     // If removal would leave less than 3 words, preserve unchanged
@@ -417,23 +448,27 @@ fn remove_intensifiers(text: &str) -> String {
         return text.to_string();
     }
 
-    // Pattern to match intensifiers at word boundaries (case-insensitive)
-    let pattern = Regex::new(r"(?i)\b(very|extremely|quite|rather|really|somewhat)\b").unwrap();
+    // Apply intensifier removal
     let result = pattern.replace_all(text, "").to_string();
 
     // Collapse multiple spaces into single space
-    let collapse_spaces = Regex::new(r"\s+").unwrap();
     let result = collapse_spaces.replace_all(&result, " ").to_string();
 
     // Trim extra spaces
     result.trim().to_string()
 }
 
-// Remove connectives (because, however, therefore, but, and, or)
+// Remove connectives (coordinating/subordinating conjunctions and transition words)
 // Replaces with space to prevent word merging (case-insensitive)
+// Covers: because, however, therefore, but, and, or, although, since, unless, while, whereas
 fn eliminate_connectives(text: &str) -> String {
-    // Coordinating and subordinating conjunctions
-    let pattern = Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or)\b,?\s*").unwrap();
+    use std::sync::OnceLock;
+
+    static CONNECTIVE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let pattern = CONNECTIVE_PATTERN.get_or_init(|| {
+        Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas)\b,?\s*").unwrap()
+    });
+
     pattern.replace_all(text, " ").trim().to_string()
 }
 

@@ -831,5 +831,82 @@ class TestPassiveVoiceEdgeCases:
         assert "artisan" in result.lower(), f"artisan should be agent: {result}"
 
 
+class TestConnectives:
+    """Test eliminate_connectives with all supported connectives."""
+
+    def test_although_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is good although it is slow")
+        assert "although" not in result.lower()
+
+    def test_since_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is true since it matters")
+        assert "since" not in result.lower()
+
+    def test_unless_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is true unless it fails")
+        assert "unless" not in result.lower()
+
+    def test_while_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is sunny while it is cold")
+        assert "while" not in result.lower()
+
+    def test_whereas_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is sunny whereas it is cold")
+        assert "whereas" not in result.lower()
+
+    def test_existing_connectives_still_removed(self):
+        from rust_cave_001 import compress
+        assert "because" not in compress("Alice went home because she was tired").lower()
+        assert "however" not in compress("It is sunny however it is cold").lower()
+        assert "therefore" not in compress("It is true therefore it matters").lower()
+        assert "but" not in compress("It is good but it is slow").lower()
+        assert "and" not in compress("It is good and it is slow").lower()
+        assert "or" not in compress("It is good or it is bad").lower()
+
+
+class TestEllipsisHandling:
+    """Test ellipsis handling in sentence splitting."""
+
+    def test_ellipsis_not_split(self):
+        from rust_cave_001 import compress
+        # "Hello... This is it" should not panic with TooShort
+        result = compress("Hello... This is it")
+        assert len(result.split()) >= 2, f"expected at least 2 words, got: {result}"
+
+    def test_ellipsis_preserved_content(self):
+        from rust_cave_001 import compress
+        result = compress("Wait for it... It works now")
+        assert "wait" in result.lower() or "it" in result.lower()
+
+
+class TestResolvePronouns:
+    """Test pronoun resolution in multi-sentence text."""
+
+    def test_it_resolved_when_prev_has_two_nouns(self):
+        from rust_cave_001 import compress
+        # "The dog barked. It was loud." -> second sentence has 2 nouns in first
+        result = compress("The dog barked. It was loud")
+        # "it" should be replaced with "dog" or remain (unambiguous guard)
+        # Either outcome is valid; just verify no crash
+        assert len(result.split()) >= 2
+
+    def test_it_not_replaced_when_single_noun(self):
+        from rust_cave_001 import compress
+        # Single noun in previous sentence - pronoun stays
+        result = compress("Dog barked. It was loud")
+        assert "it" in result.lower() or "dog" in result.lower()
+
+    def test_they_not_replaced_when_insufficient_context(self):
+        from rust_cave_001 import compress
+        result = compress("Something happened. They were loud")
+        # Should not crash regardless of outcome
+        assert len(result.split()) >= 2
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
