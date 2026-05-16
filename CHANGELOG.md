@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0-dev] - 2026-05-16
+
+### Added
+- **Custom error types** (`src/error.rs`) — `CompressionError` enum with 4 variants: TooShort, VoiceTransformFailed, EmptyInput, PipelineError. Includes `Display` + `std::error::Error` impls.
+- **Abbreviation-aware sentence splitting** — `split_into_sentences()` now recognizes 27 common abbreviations (Dr., U.S.A., e.g., Jan., etc.) to prevent false sentence boundaries.
+- **Rust unit tests** — expanded from 3 to 24 tests covering all pipeline functions: expand_contractions, remove_intensifiers, eliminate_connectives, enforce_word_limit, split_into_sentences, abbreviation protection, and edge cases (unicode, multi-contraction, possessive vs contraction).
+- **build.rs dynamic linking** — detects Python version at build time instead of hardcoding 3.13. Graceful fallback when python3 is unavailable.
+
+### Changed
+- Error messages for logical completeness failures now use `CompressionError::TooShort` instead of raw `PyValueError`, providing more specific error context.
+- `split_into_sentences()` uses `OnceLock`-cached regex for abbreviation matching (compiled once, not per-call).
+
 ## [0.3.0] - 2026-05-16
 
 ### Added

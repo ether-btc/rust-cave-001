@@ -631,9 +631,7 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
         let min_words = 2;
         let word_count = result.split_whitespace().count();
         if word_count < min_words {
-            return Err(exceptions::PyValueError::new_err(
-                "Text lacks logical completeness - please provide complete sentences",
-            ));
+            return Err(crate::error::CompressionError::TooShort(result).into_pyerr());
         }
 
         processed_sentences.push(result);
@@ -672,9 +670,7 @@ pub fn preprocess_text(text: &str) -> PyResult<String> {
 
     // Check logical completeness
     if !is_logically_complete(&result) {
-        return Err(exceptions::PyValueError::new_err(
-            "Text lacks logical completeness - please provide complete sentences",
-        ));
+        return Err(crate::error::CompressionError::TooShort(result).into_pyerr());
     }
 
     Ok(result)
