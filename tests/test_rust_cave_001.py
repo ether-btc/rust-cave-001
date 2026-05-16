@@ -242,6 +242,96 @@ class TestPreprocessText:
 
 
 # =============================================================================
+# Present Tense Normalization
+# =============================================================================
+
+class TestPresentTenseNormalization:
+    """Direct tests for normalize_present_tense."""
+
+    def test_irregular_verbs(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        cases = [
+            ("threw", "throw"),
+            ("ate", "eat"),
+            ("wrote", "write"),
+            ("saw", "see"),
+            ("gave", "give"),
+            ("sang", "sing"),
+            ("broke", "break"),
+            ("drove", "drive"),
+            ("spoke", "speak"),
+            ("wore", "wear"),
+            ("won", "win"),
+            ("ran", "run"),
+            ("knew", "know"),
+            ("went", "go"),
+            ("taught", "teach"),
+            ("thought", "think"),
+            ("slept", "sleep"),
+            ("stood", "stand"),
+            ("swam", "swim"),
+            ("flew", "fly"),
+            ("grew", "grow"),
+            ("drew", "draw"),
+            ("began", "begin"),
+            ("chose", "choose"),
+            ("came", "come"),
+            ("hid", "hide"),
+        ]
+        for past, present in cases:
+            result = npt(past)
+            assert result.lower() == present, f"npt('{past}') = '{result}' (expected '{present}')"
+
+    def test_regular_verbs_ed_stripping(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        cases = [
+            ("worked", "work"),
+            ("called", "call"),
+            ("looked", "look"),
+            ("stopped", "stop"),   # double consonant simplified
+            ("played", "play"),
+            ("moved", "move"),
+            ("lived", "live"),
+            ("cached", "cache"),
+            ("parsed", "parse"),
+            ("merged", "merge"),
+        ]
+        for past, present in cases:
+            result = npt(past)
+            assert result.lower() == present, f"npt('{past}') = '{result}' (expected '{present}')"
+
+    def test_same_form_verbs(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        for verb in ["cost", "cut", "hit", "hurt", "let", "put", "read", "set", "shut", "spread"]:
+            result = npt(verb)
+            assert result.lower() == verb, f"npt('{verb}') = '{result}'"
+
+    def test_preserves_capitalization_title_case(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        result = npt("John threw the ball")
+        assert result == "John throw the ball"
+
+    def test_preserves_capitalization_sentence(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        result = npt("He wrote the code")
+        assert result == "He write the code"
+
+    def test_no_change_already_present(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        result = npt("I write code")
+        assert result == "I write code"
+
+    def test_empty_string(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        assert npt("") == ""
+
+    def test_single_word_no_match(self):
+        from rust_cave_001 import normalize_present_tense as npt
+        result = npt("frobnicate")
+        assert result == "frobnicate"
+
+
+# =============================================================================
 # Compress Function — Full Caveman Rules Pipeline
 # =============================================================================
 

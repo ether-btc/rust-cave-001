@@ -151,7 +151,7 @@ See [BENCHMARKS.md](BENCHMARKS.md) for detailed performance data across 9 text t
 
 ## Known Limitations
 
-- Verb conjugation map covers ~60 irregular verbs; regular verbs fall back to stripping the "ed" suffix
+- Verb conjugation map covers ~100 irregular verbs; regular verbs fall back to stripping the "ed" suffix
 - Two-word sentences after processing are rejected as logically incomplete
 - Not designed for code, structured data, or non-English text
 

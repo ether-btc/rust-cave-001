@@ -46,7 +46,7 @@ fn main() {
             let libname = ldlibrary.trim_start_matches("lib").trim_end_matches(".so");
 
             let abi3_enabled =
-                env::var("DEP_PYO3_ABI3").is_ok() || env::var("DEP_PYO3_ABI3_PY312").is_ok();
+            env::var("DEP_PYO3_ABI3").is_ok() || env::var("DEP_PYO3_ABI3_PY310").is_ok();
 
             println!("cargo:include={}", includepy);
             println!("cargo:cflag=-I{}", includepy);

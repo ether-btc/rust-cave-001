@@ -1,47 +1,53 @@
-# rust-cave-001 — Session Reference (May 15, 2026)
+# rust-cave-001 — Session Reference (May 16, 2026)
 
 ## Resume Here
 
-Phase 0 complete, framework design greenlit. **Next: build the self-learning framework.**
+Code audit complete and fixes applied (v0.2.1). **Next: build the self-learning framework** — strategy selector that picks compression rules per input type.
 
 ### Quickstart
 ```
 git clone https://github.com/ether-btc/rust-cave-001
 cd rust-cave-001
-cargo build --release
-maturin build --release --auditwheel skip -o dist/
-pip install dist/*.whl --force-reinstall --break-system-packages
-pytest tests/ -v
+source .venv/bin/activate
+maturin develop --release
+pytest tests/ -v        # 66 tests, all pass
 python3 benchmarks/benchmark.py
 ```
 
 ### Key References
 | What | Value |
-|---|---|
+|------|-------|
 | Repo | `github.com/ether-btc/rust-cave-001` (master) |
-| Latest commit | `71f2c6b` — "fix: normalize_present_tense ed-stripping edge cases" |
+| Latest commit | `25932c6` — "fix: cargo fmt alignment in test comment" |
 | Tags | v0.1.0, v0.1.1, v0.2.0, v0.2.1 |
-| Issues | #3 OPEN (Mnemosyne integration), #2 CLOSED, #1 CLOSED |
-| CI | Green — 58/58 tests, benchmark 48.4% |
-| Open issue | #3: Wire Caveman into Mnemosyne (auto-detect pattern) |
+| CI | Green — 66/66 tests, benchmarks 48.4% avg token reduction |
+| Current version | **v0.2.1** (deduplicated maps, clean docs, fresh wheel) |
+| Ceiling | 48.4% static — self-learning needed for 55-60% |
 
 ### What Exists
-- **9 compression rules** in pipeline (`src/lib.rs`, 676 lines) — pronoun resolution → active voice → present tense → articles → intensifiers → connectives → word limit → completeness
+- **9 compression rules** in pipeline (`src/lib.rs`, 813 lines)
 - **Benchmark suite** (`benchmarks/benchmark.py`) — 9 text types, LZ4, combined pipeline
-- **58 passing tests** (`tests/test_rust_cave_001.py`)
-- **ATTRIBUTION.md** — credits wilpel/caveman-compression, JuliusBrussee/caveman, squeez
-- **Wiki pages:** `entities/rust-cave-001.md` (ecosystem mapped), `concepts/self-learning-caveman-framework.md`
+- **66 passing tests** (`tests/test_rust_cave_001.py`) — includes direct `normalize_present_tense` tests (26 new)
+- **ATTRIBUTION.md** — credits upstream SPEC repos
+- **Verb maps**: 94 unique entries (transform_active_voice) + 147 unique entries (normalize_present_tense)
 
-### Key Finding
-**Static ceiling: 48.4% avg token reduction.** Adding present tense + pronoun rules didn't push past it. Self-learning framework (strategy selection per input type) is the only path to 55-60%. Architecture already drafted in wiki.
+### Latest Audit Findings Addressed (v0.2.1)
+- ✅ Deduplicated verb conjugation maps (removed 27 duplicate entries)
+- ✅ Bumped Cargo.toml/pyproject.toml v0.2.0 → v0.2.1
+- ✅ De-hermesified descriptions in pyproject.toml
+- ✅ Fixed build.rs DEP_PYO3_ABI3 check (PY312 → PY310)
+- ✅ Updated BENCHMARKS.md version (v0.1.0 → v0.2.1)
+- ✅ Updated README.md verb count (~60 → ~100)
+- ✅ Added 26 direct tests for normalize_present_tense
+- ✅ Removed dead code comment in preprocess_text
 
 ### Next Steps (priority order)
-1. **Self-learning framework design & build** — strategy selector + auto-benchmark oracle (see wiki concept page)
-2. **Publish to PyPI** — needs API token from https://pypi.org/manage/account/token/
-3. **MCP server integration** — expose as MCP tool (reference: squeez architecture)
-4. **Expand verb map** — 100+ → 200+ irregular verbs
-5. **Add direct Python tests for normalize_present_tense and resolve_pronouns**
-6. **Close Issue #3** — auto-detect pattern in Mnemosyne (`try: import` instead of env var)
+1. **Self-learning framework design & build** — strategy selector + auto-benchmark oracle
+2. **Publish to PyPI** — needs API token from pypi.org/manage/account/token/
+3. **MCP server integration** — expose as MCP tool
+4. **Add tests for resolve_pronouns** across ambiguous/unambiguous cases
+5. **Expand verb map** — 94 → 150+ unique entries
+6. **Update CI** — move from actions/cache@v4 (Node 20 deprecation) to v5
 
 ### Upstream Repos to Watch
 | Repo | Why | Absorb When |
