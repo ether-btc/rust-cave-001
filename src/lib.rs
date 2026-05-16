@@ -196,14 +196,14 @@ fn is_logically_complete(text: &str) -> bool {
 // Uses OnceLock to compile the abbreviation regex once.
 fn split_into_sentences(text: &str) -> Vec<String> {
     use std::sync::OnceLock;
-    
+
     static ABBREVIATION_PATTERN: OnceLock<Regex> = OnceLock::new();
     let abbr_re = ABBREVIATION_PATTERN.get_or_init(|| {
         Regex::new(
             r"(?i)\b(dr|mr|mrs|ms|prof|sr|jr|st|ave|blvd|etc|vs|inc|ltd|co|dept|est|govt|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|u\.s\.?a?|e\.g|i\.e|al)\.$"
         ).unwrap()
     });
-    
+
     let mut sentences = Vec::new();
     let mut current = String::new();
     let mut chars = text.chars().peekable();
@@ -220,7 +220,7 @@ fn split_into_sentences(text: &str) -> Vec<String> {
                     continue; // Not a sentence boundary
                 }
             }
-            
+
             // Look ahead: if next char is whitespace/end, this is a sentence boundary
             match chars.peek() {
                 Some(&next) if next.is_whitespace() => {
@@ -765,7 +765,7 @@ mod tests {
     fn test_expand_contractions_edge_cases() {
         // Unicode — accented chars: function uses ASCII patterns, they pass through
         assert_eq!(expand_contractions("café's good"), "café's good"); // no ASCII match
-        // Possessive 's — correctly NOT matched (only specific forms listed)
+                                                                       // Possessive 's — correctly NOT matched (only specific forms listed)
         assert_eq!(expand_contractions("cat's tail"), "cat's tail");
         // Multi-contraction sentence
         assert_eq!(
@@ -777,7 +777,7 @@ mod tests {
         assert_eq!(expand_contractions("x"), "x");
         // Numbers with apostrophes
         assert_eq!(expand_contractions("'80s"), "'80s"); // no match
-        // Already expanded
+                                                         // Already expanded
         assert_eq!(expand_contractions("do not"), "do not");
     }
 
@@ -832,7 +832,12 @@ mod tests {
     fn test_split_abbreviation_protection() {
         // Abbreviation "Dr." should NOT cause a split
         let result = split_into_sentences("Dr. Smith went to the store.");
-        assert_eq!(result.len(), 1, "Abbreviation 'Dr.' should not split: {:?}", result);
+        assert_eq!(
+            result.len(),
+            1,
+            "Abbreviation 'Dr.' should not split: {:?}",
+            result
+        );
 
         // "U.S.A." should not cause splits
         let result2 = split_into_sentences("The U.S.A. is a country.");
@@ -844,6 +849,11 @@ mod tests {
 
         // Normal sentences still split correctly
         let result4 = split_into_sentences("First sentence. Second sentence.");
-        assert_eq!(result4.len(), 2, "Normal sentences should split: {:?}", result4);
+        assert_eq!(
+            result4.len(),
+            2,
+            "Normal sentences should split: {:?}",
+            result4
+        );
     }
 }
