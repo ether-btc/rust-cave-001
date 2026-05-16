@@ -156,42 +156,47 @@ pub fn classify(text: &str) -> TextType {
 /// Returns None to indicate "use default full pipeline".
 pub fn recommended_strategy(text_type: TextType) -> &'static [&'static str] {
     match text_type {
-        // Technical: remove articles + connectives aggressively, keep numbers,
-        // word limit to 5, active voice, present tense
+        // Technical: aggressive compression, expand contractions, remove "be" verbs
         TextType::Technical => &[
             "split_sentences",
+            "expand_contractions",
             "resolve_pronouns",
             "active_voice",
             "present_tense",
+            "remove_copular_be",
             "remove_articles",
             "remove_intensifiers",
             "eliminate_connectives",
             "word_limit_5",
             "logical_completeness",
         ],
-        // Conversational: remove intensifiers + connectives, keep pronouns
+        // Conversational: expand contractions, keep pronouns
         TextType::Conversational => &[
             "split_sentences",
+            "expand_contractions",
             "present_tense",
             "remove_intensifiers",
             "eliminate_connectives",
             "word_limit_5",
             "logical_completeness",
         ],
-        // Academic: heavy connective elimination, present tense, word limit
+        // Academic: expand contractions, heavy elimination
         TextType::Academic => &[
             "split_sentences",
+            "expand_contractions",
             "active_voice",
             "present_tense",
+            "remove_copular_be",
             "remove_articles",
             "remove_intensifiers",
             "eliminate_connectives",
             "word_limit_5",
             "logical_completeness",
         ],
-        // Dialogue: minimal processing, keep natural flow
+        // Dialogue: expand contractions, keep natural flow
         TextType::Dialogue => &[
             "split_sentences",
+            "expand_contractions",
             "remove_intensifiers",
             "eliminate_connectives",
             "word_limit_5",
@@ -201,9 +206,11 @@ pub fn recommended_strategy(text_type: TextType) -> &'static [&'static str] {
         // Mixed / unknown: full pipeline
         TextType::Mixed => &[
             "split_sentences",
+            "expand_contractions",
             "resolve_pronouns",
             "active_voice",
             "present_tense",
+            "remove_copular_be",
             "remove_articles",
             "remove_intensifiers",
             "eliminate_connectives",

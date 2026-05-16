@@ -1,15 +1,15 @@
 # rust-cave-001 — Session Reference (May 16, 2026)
 
-## Resume Here — Stage 1 Complete (Verb Map Expansion)
+## Resume Here — Stage 2 Complete (Contraction Expansion + "Be" Removal)
 
-Stage 1: **Verb map expansion** complete. Inline maps extracted to `src/verb_maps.rs`.
-- PAST_PARTICIPLE_TO_SIMPLE_PAST: 94 → **192 entries** (2x coverage)
-- SIMPLE_PAST_TO_PRESENT: 147 → **220+ entries** (50% increase)
-- Classifier Dialogue detection tightened (word_count < 15 guard)
-- Classifier now detects conversational greetings ("hey", "hi", "hello", etc.)
-- All 17 Rust tests, 82 Python tests pass, benchmarks sustained at 48.4% avg token reduction
+Stage 1: **Verb map expansion** — completed.
+Stage 2: **Contraction expansion + "be" verb removal** — completed.
+- `expand_contractions()`: 60+ English contractions expanded (n't, 's, 're, 've, 'll, 'd, informal)
+- `remove_copular_be()`: Removes is/are/was/were/am/be/been/being with 2-word safety guard
+- Both rules wired into `apply_caveman_rules()` pipeline and all classifier strategies
+- All 17 Rust tests, 82 Python tests pass, clippy clean
 
-**Next: Stage 2** — Contraction expansion rule + "be" verb removal.
+**Next: Stage 3** — Conjunction reduction (compress "and"/"but"/"or" clauses).
 
 ### Quickstart
 ```
