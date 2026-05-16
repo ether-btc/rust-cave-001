@@ -1,6 +1,6 @@
 # Benchmarks
 
-Benchmark results for rust-cave-001 v0.2.1.
+Benchmark results for rust-cave-001 v0.3.0.
 
 ```bash
 python3 benchmarks/benchmark.py

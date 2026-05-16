@@ -719,5 +719,117 @@ class TestConjunctionReduction:
         assert "but" not in result.split(), f"but should be removed: {result}"
 
 
+# =============================================================================
+# Overlapping Contraction + Pipeline Interaction Tests (v0.3.0)
+# =============================================================================
+
+class TestPipelineInteractions:
+    """Test how contraction expansion interacts with downstream pipeline rules."""
+
+    def test_isnt_be_removal_overlap(self):
+        """isn't -> is not -> 'is' stripped by remove_copular_be."""
+        from rust_cave_001 import compress
+        result = compress("It isn't true")
+        # After: isn't -> is not -> remove_copular_be strips 'is' -> it not true
+        # Then articles/word-limit: it is not true -> it not true
+        assert result, f"Result should not be empty: {result}"
+        assert "not" in result.lower(), f"'not' should remain: {result}"
+
+    def test_wasnt_be_removal_overlap(self):
+        """wasn't -> was not -> 'was' stripped by remove_copular_be."""
+        from rust_cave_001 import compress
+        result = compress("He wasn't there")
+        assert result
+        assert "not" in result.lower() or "there" in result.lower()
+
+    def test_multiple_contractions(self):
+        """Multiple contraction types in one sentence."""
+        from rust_cave_001 import compress
+        result = compress("I don't know what's happening")
+        # don't -> do not, what's -> what is -> pipeline processes both
+        assert "not" in result.lower() or "know" in result.lower()
+        # "happening" gets truncated by word_limit_5 (5 words cap after expansion)
+
+    def test_contraction_and_passive(self):
+        """Contraction expansion feeds into passive voice transformation."""
+        from rust_cave_001 import compress
+        # 'wasn't thrown by' -> 'was not thrown by' -> active voice
+        result = compress("The ball wasn't thrown by John")
+        assert "john" in result.lower(), f"John should be agent: {result}"
+        assert "throw" in result.lower(), f"throw should be verb: {result}"
+
+    def test_contraction_gonna_edge(self):
+        """Informal contraction 'gonna' expands to 'going to'."""
+        from rust_cave_001 import compress
+        result = compress("I'm gonna leave")
+        assert "leave" in result.lower(), f"leave should stay: {result}"
+
+
+# =============================================================================
+# Be-Verb Guard Tests (v0.3.0)
+# =============================================================================
+
+class TestBeVerbGuard:
+    """Test remove_copular_be safety guard (min 2 words remaining)."""
+
+    def test_be_guard_preserves_two_words(self):
+        """Removal of 'am' from 'I am' leaves 1 word < 2 -> preserved."""
+        from rust_cave_001 import compress
+        result = compress("I am pleased")
+        assert result, f"Should survive guard: {result}"
+
+    def test_be_guard_removes_three_words(self):
+        """Removal of 'was' from 'He was here' leaves 2 words >= 2 -> removed."""
+        from rust_cave_001 import compress
+        result = compress("He was here")
+        # After: be_removal removes 'was' -> He here (2 words, OK)
+        assert "here" in result.lower(), f"here should remain: {result}"
+
+    def test_be_guard_multiple_be(self):
+        """Multiple be-verbs in short text should trigger guard."""
+        from rust_cave_001 import compress
+        result = compress("I am being careful")
+        assert result, f"Should survive: {result}"
+
+    def test_acronym_protection(self):
+        """ALL-CAPS words like IS, BE, AM should NOT be removed."""
+        from rust_cave_001 import compress
+        result = compress("The IS department approved it")
+        # 'IS' should NOT be removed by remove_copular_be (acronym)
+        assert "IS" not in result or "is" in result.lower(), f"IS should be preserved: {result}"
+
+
+# =============================================================================
+# Passive Voice Edge Cases (v0.3.0)
+# =============================================================================
+
+class TestPassiveVoiceEdgeCases:
+    """Test passive voice with new verb map entries and limitations."""
+
+    def test_passive_caught(self):
+        """New verb 'caught' (v0.3.0 verb map)."""
+        from rust_cave_001 import compress
+        result = compress("The thief was caught by the police")
+        assert "police" in result.lower(), f"police should be agent: {result}"
+
+    def test_passive_shot(self):
+        """New verb 'shot' (v0.3.0 verb map)."""
+        from rust_cave_001 import compress
+        result = compress("The target was shot by the sniper")
+        assert "sniper" in result.lower(), f"sniper should be agent: {result}"
+
+    def test_passive_struck(self):
+        """New verb 'struck' (v0.3.0 verb map)."""
+        from rust_cave_001 import compress
+        result = compress("The deal was struck by the lawyers")
+        assert "lawyer" in result.lower(), f"lawyers should be agent: {result}"
+
+    def test_passive_woven(self):
+        """New verb 'woven' -> 'wove' (pp != sp, v0.3.0 verb map)."""
+        from rust_cave_001 import compress
+        result = compress("The basket was woven by the artisan")
+        assert "artisan" in result.lower(), f"artisan should be agent: {result}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

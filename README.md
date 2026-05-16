@@ -104,7 +104,7 @@ Applied in order by `compress()` (based on [Caveman Compression SPEC](https://gi
 
 1. **Sentence splitting** — Split on `.`, `!`, `?`, then process each sentence independently
 2. **Pronoun resolution** — Replace ambiguous pronouns (`it`, `they`, `them`) with preceding noun when multiple candidates exist
-3. **Active voice transform** — Convert passive ("was written by") to active ("wrote") using a verb conjugation map with 60+ irregular verbs
+3. **Active voice transform** — Convert passive ("was written by") to active ("wrote") using a verb conjugation map with 300+ verbs
 4. **Present tense normalization** — Convert past-tense verbs to present tense (e.g., "threw" → "throw", "wrote" → "write") using a 100+ verb conjugation map
 5. **Intensifier removal** — Remove `very`, `extremely`, `quite`, `rather`, `really`, `somewhat`
 6. **Article removal** — Remove `the`, `a`, `an`, `this` (unless removal would leave fewer than 3 words)

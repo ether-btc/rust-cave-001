@@ -260,90 +260,98 @@ fn remove_articles(text: &str) -> String {
 
 // Expand English contractions into full forms (e.g., "don't" → "do not").
 // Must run early so downstream rules can process the expanded forms.
+// Uses OnceLock static cache to compile regexes once (not 63× per call).
 fn expand_contractions(text: &str) -> String {
-    // Apply contractions via direct word-boundary replacement
-    // Using individual replace_all calls to handle apostrophes correctly
-    let mut result = text.to_string();
-    for (contraction, expansion) in &[
-        // ── n't contractions ──
-        ("don't", "do not"),
-        ("doesn't", "does not"),
-        ("didn't", "did not"),
-        ("won't", "will not"),
-        ("wouldn't", "would not"),
-        ("can't", "cannot"),
-        ("couldn't", "could not"),
-        ("shouldn't", "should not"),
-        ("mightn't", "might not"),
-        ("mustn't", "must not"),
-        ("isn't", "is not"),
-        ("aren't", "are not"),
-        ("wasn't", "was not"),
-        ("weren't", "were not"),
-        ("hasn't", "has not"),
-        ("haven't", "have not"),
-        ("hadn't", "had not"),
-        ("needn't", "need not"),
-        ("daren't", "dare not"),
-        // ── 's contractions ──
-        ("it's", "it is"),
-        ("he's", "he is"),
-        ("she's", "she is"),
-        ("that's", "that is"),
-        ("what's", "what is"),
-        ("there's", "there is"),
-        ("who's", "who is"),
-        ("here's", "here is"),
-        ("where's", "where is"),
-        ("how's", "how is"),
-        ("let's", "let us"),
-        // ── 'm / 're / 've ──
-        ("i'm", "i am"),
-        ("we're", "we are"),
-        ("they're", "they are"),
-        ("you're", "you are"),
-        ("i've", "i have"),
-        ("we've", "we have"),
-        ("they've", "they have"),
-        ("you've", "you have"),
-        // ── 'll ──
-        ("i'll", "i will"),
-        ("we'll", "we will"),
-        ("they'll", "they will"),
-        ("you'll", "you will"),
-        ("he'll", "he will"),
-        ("she'll", "she will"),
-        ("it'll", "it will"),
-        ("that'll", "that will"),
-        // ── 'd ──
-        ("i'd", "i would"),
-        ("we'd", "we would"),
-        ("they'd", "they would"),
-        ("you'd", "you would"),
-        ("he'd", "he would"),
-        ("she'd", "she would"),
-        ("it'd", "it would"),
-        // ── Informal ──
-        ("gonna", "going to"),
-        ("wanna", "want to"),
-        ("gotta", "got to"),
-        ("kinda", "kind of"),
-        ("sorta", "sort of"),
-        ("outta", "out of"),
-        ("oughta", "ought to"),
-        ("lemme", "let me"),
-        ("gimme", "give me"),
-        ("dunno", "do not know"),
-        ("cmon", "come on"),
-        ("cos", "because"),
-    ] {
-        // Case-insensitive word-boundary replacement for each contraction
-        let pattern_str = format!(r"(?i)\b{}\b", regex::escape(contraction));
-        if let Ok(re) = Regex::new(&pattern_str) {
-            result = re.replace_all(&result, *expansion).to_string();
-        }
-    }
+    use std::sync::OnceLock;
 
+    static CONTRACTION_REGEXES: OnceLock<Vec<(regex::Regex, &'static str)>> = OnceLock::new();
+    let regexes = CONTRACTION_REGEXES.get_or_init(|| {
+        const PAIRS: &[(&str, &str)] = &[
+            // ── n't contractions ──
+            ("don't", "do not"),
+            ("doesn't", "does not"),
+            ("didn't", "did not"),
+            ("won't", "will not"),
+            ("wouldn't", "would not"),
+            ("can't", "cannot"),
+            ("couldn't", "could not"),
+            ("shouldn't", "should not"),
+            ("mightn't", "might not"),
+            ("mustn't", "must not"),
+            ("isn't", "is not"),
+            ("aren't", "are not"),
+            ("wasn't", "was not"),
+            ("weren't", "were not"),
+            ("hasn't", "has not"),
+            ("haven't", "have not"),
+            ("hadn't", "had not"),
+            ("needn't", "need not"),
+            ("daren't", "dare not"),
+            // ── 's contractions ──
+            ("it's", "it is"),
+            ("he's", "he is"),
+            ("she's", "she is"),
+            ("that's", "that is"),
+            ("what's", "what is"),
+            ("there's", "there is"),
+            ("who's", "who is"),
+            ("here's", "here is"),
+            ("where's", "where is"),
+            ("how's", "how is"),
+            ("let's", "let us"),
+            // ── 'm / 're / 've ──
+            ("i'm", "i am"),
+            ("we're", "we are"),
+            ("they're", "they are"),
+            ("you're", "you are"),
+            ("i've", "i have"),
+            ("we've", "we have"),
+            ("they've", "they have"),
+            ("you've", "you have"),
+            // ── 'll ──
+            ("i'll", "i will"),
+            ("we'll", "we will"),
+            ("they'll", "they will"),
+            ("you'll", "you will"),
+            ("he'll", "he will"),
+            ("she'll", "she will"),
+            ("it'll", "it will"),
+            ("that'll", "that will"),
+            // ── 'd ──
+            ("i'd", "i would"),
+            ("we'd", "we would"),
+            ("they'd", "they would"),
+            ("you'd", "you would"),
+            ("he'd", "he would"),
+            ("she'd", "she would"),
+            ("it'd", "it would"),
+            // ── Informal ──
+            ("gonna", "going to"),
+            ("wanna", "want to"),
+            ("gotta", "got to"),
+            ("kinda", "kind of"),
+            ("sorta", "sort of"),
+            ("outta", "out of"),
+            ("oughta", "ought to"),
+            ("lemme", "let me"),
+            ("gimme", "give me"),
+            ("dunno", "do not know"),
+            ("cmon", "come on"),
+            ("cos", "because"),
+        ];
+        PAIRS
+            .iter()
+            .map(|(c, e)| {
+                let pattern = format!(r"(?i)\b{}\b", regex::escape(c));
+                (regex::Regex::new(&pattern).unwrap(), *e)
+            })
+            .collect()
+    });
+
+    let mut result = text.to_string();
+    for (re, expansion) in regexes {
+        result = re.replace_all(&result, *expansion).to_string();
+    }
     result
 }
 
@@ -361,7 +369,16 @@ fn remove_copular_be(text: &str) -> String {
         return text.to_string();
     }
 
-    let result = be_verb_pattern.replace_all(text, "").to_string();
+    let result = be_verb_pattern
+        .replace_all(text, |caps: &regex::Captures| {
+            let word = caps.get(0).unwrap().as_str();
+            // Acronym protection: skip removal if word is fully uppercase (e.g., IS, BE, AM)
+            if word.chars().all(|c| c.is_uppercase()) {
+                return word.to_string();
+            }
+            String::new()
+        })
+        .to_string();
     // Collapse multiple spaces
     let re_spaces = Regex::new(r"\s+").unwrap();
     re_spaces.replace_all(&result, " ").trim().to_string()
