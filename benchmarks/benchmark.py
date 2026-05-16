@@ -374,6 +374,7 @@ def main():
     nlp_results = benchmark_nlp_compression()
     lz4_results = benchmark_lz4_compression()
     benchmark_combined_pipeline()
+    strat_results = benchmark_strategies()
     all_ok = run_sanity_checks()
 
     # Summary
@@ -407,6 +408,107 @@ def main():
     print()
 
     return all_ok
+
+
+# ── Strategy Benchmark Oracle ────────────────────────────────────────────────
+
+def benchmark_strategies():
+    """Compare compress() vs compress_adaptive() per text type.
+
+    The benchmark oracle: measures whether adaptive strategy selection
+    improves or regresses compression ratio vs the full pipeline.
+    Regressions indicate the classifier heuristic needs tuning.
+    """
+    print("=" * 82)
+    print("  STRATEGY COMPARISON: compress() vs compress_adaptive()")
+    print("=" * 82)
+    print()
+
+    from rust_cave_001 import compress_adaptive
+
+    header = (
+        f"  {'Text Type':<28} {'Full Tokens':>12} {'Adapt Tokens':>12} "
+        f"{'Delta':>8} {'Full Time':>10} {'Adapt Time':>10}"
+    )
+    print(header)
+    print("  " + "─" * 82)
+
+    strat_results = []
+    regressions = 0
+
+    for key, info in ALL_TEXTS.items():
+        text = info["text"]
+        label = info["label"]
+        orig_tokens = estimate_tokens(text)
+
+        # Baseline: full compress()
+        try:
+            t0 = time.perf_counter()
+            full_result = compress(text)
+            full_time = (time.perf_counter() - t0) * 1000
+            full_tokens = estimate_tokens(full_result)
+            full_pct = ((orig_tokens - full_tokens) / orig_tokens * 100) if orig_tokens else 0
+        except ValueError as e:
+            full_tokens = 0
+            full_pct = 0.0
+            full_time = 0.0
+            full_result = str(e)
+
+        # Adaptive: compress_adaptive()
+        try:
+            t0 = time.perf_counter()
+            adapt_result = compress_adaptive(text)
+            adapt_time = (time.perf_counter() - t0) * 1000
+            adapt_tokens = estimate_tokens(adapt_result)
+            adapt_pct = ((orig_tokens - adapt_tokens) / orig_tokens * 100) if orig_tokens else 0
+        except ValueError as e:
+            adapt_tokens = 0
+            adapt_pct = 0.0
+            adapt_time = 0.0
+            adapt_result = str(e)
+
+        delta = adapt_pct - full_pct
+        if delta < -2.0:
+            status = " ⚠ REGRESSION"
+            regressions += 1
+        elif delta > 2.0:
+            status = " ✓ IMPROVED"
+        else:
+            status = "  ∼  neutral"
+
+        full_str = f"{full_pct:.1f}% ({full_tokens})"
+        adapt_str = f"{adapt_pct:.1f}% ({adapt_tokens})"
+        delta_str = f"{delta:+.1f}%"
+
+        print(
+            f"  {label:<28} {full_str:>12} {adapt_str:>12} "
+            f"{delta_str:>8} {fmt_ms(full_time):>10} {fmt_ms(adapt_time):>10}"
+            f"{status}"
+        )
+
+        strat_results.append({
+            "label": label,
+            "orig_tokens": orig_tokens,
+            "full_tokens": full_tokens,
+            "full_pct": round(full_pct, 1),
+            "full_time_ms": round(full_time, 3),
+            "adapt_tokens": adapt_tokens,
+            "adapt_pct": round(adapt_pct, 1),
+            "adapt_time_ms": round(adapt_time, 3),
+            "delta": round(delta, 1),
+        })
+
+    print()
+    avg_delta = statistics.mean([r["delta"] for r in strat_results])
+    print(f"  Average delta: {avg_delta:+.1f}%")
+    print(f"  Regressions:   {regressions}/{len(strat_results)}")
+    if regressions > 0:
+        print(f"  ⚠  Need to tune classifier heuristics for underperforming text types")
+    else:
+        print(f"  ✓  All strategies at least neutral vs full pipeline")
+    print()
+
+    return strat_results
 
 
 if __name__ == "__main__":

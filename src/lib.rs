@@ -6,6 +6,7 @@ use regex::Regex;
 
 mod classifier;
 
+use std::collections::HashSet;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm
@@ -673,37 +674,52 @@ fn resolve_pronouns(sentences: &mut [String]) {
     }
 }
 
-// Apply all Caveman compression rules in the correct order
-fn apply_caveman_rules(text: &str) -> PyResult<String> {
+// Apply selected Caveman compression rules based on strategy.
+// When strategy is None, applies ALL rules (full pipeline).
+fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult<String> {
     // 1. Split into sentences (if multiple)
     let sentences = split_into_sentences(text);
-    // 1.5 Resolve pronoun ambiguity (SPEC Rule 8) — operates on sentence list
+    // Resolve pronoun ambiguity — operates on sentence list before loop
     let mut sentences = sentences;
-    resolve_pronouns(&mut sentences);
+    if strategy.map_or(true, |s| s.contains("resolve_pronouns")) {
+        resolve_pronouns(&mut sentences);
+    }
     let mut processed_sentences = Vec::new();
 
     for sentence in sentences {
         let mut result = sentence;
 
-        // 2. Active voice transformation
-        result = transform_active_voice(&result)?;
+        // Active voice transformation
+        if strategy.map_or(true, |s| s.contains("active_voice")) {
+            result = transform_active_voice(&result)?;
+        }
 
-        // 2.5 Present tense normalization (SPEC Rule 4)
-        result = normalize_present_tense(&result)?;
+        // Present tense normalization
+        if strategy.map_or(true, |s| s.contains("present_tense")) {
+            result = normalize_present_tense(&result)?;
+        }
 
-        // 3. Remove articles
-        result = remove_articles(&result);
+        // Remove articles
+        if strategy.map_or(true, |s| s.contains("remove_articles")) {
+            result = remove_articles(&result);
+        }
 
-        // 4. Remove intensifiers
-        result = remove_intensifiers(&result);
+        // Remove intensifiers
+        if strategy.map_or(true, |s| s.contains("remove_intensifiers")) {
+            result = remove_intensifiers(&result);
+        }
 
-        // 5. Remove connectives
-        result = eliminate_connectives(&result);
+        // Remove connectives
+        if strategy.map_or(true, |s| s.contains("eliminate_connectives")) {
+            result = eliminate_connectives(&result);
+        }
 
-        // 6. Enforce word limit
-        result = enforce_word_limit(&result);
+        // Enforce word limit
+        if strategy.map_or(true, |s| s.contains("word_limit_5")) {
+            result = enforce_word_limit(&result);
+        }
 
-        // 7. Check logical completeness (at least 2 words)
+        // Check logical completeness (at least 2 words)
         let min_words = 2;
         let word_count = result.split_whitespace().count();
         if word_count < min_words {
@@ -719,11 +735,22 @@ fn apply_caveman_rules(text: &str) -> PyResult<String> {
     Ok(processed_sentences.join(" "))
 }
 
-/// Apply all Caveman compression rules to the input text
+/// Full-pipeline compress — all 9 rules (default, unchanged behavior).
 #[pyfunction]
 #[pyo3(signature = (text))]
 pub fn compress(text: &str) -> PyResult<String> {
-    apply_caveman_rules(text)
+    apply_caveman_rules(text, None)
+}
+
+/// Adaptive compress — auto-classifies text and selects optimal rule subset.
+#[pyfunction]
+#[pyo3(signature = (text))]
+pub fn compress_adaptive(text: &str) -> PyResult<String> {
+    use crate::classifier::{classify, recommended_strategy};
+    let text_type = classify(text);
+    let strategy_names = recommended_strategy(text_type);
+    let strategy: HashSet<&str> = strategy_names.iter().copied().collect();
+    apply_caveman_rules(text, Some(&strategy))
 }
 
 /// Preprocess text by applying active voice, present tense, and logical completeness checks
@@ -762,6 +789,7 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(deserialize_compressed, module)?)?;
     module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
     module.add_function(wrap_pyfunction!(compress, module)?)?;
+    module.add_function(wrap_pyfunction!(compress_adaptive, module)?)?;
     module.add_function(wrap_pyfunction!(normalize_present_tense, module)?)?;
     module.add_function(wrap_pyfunction!(classifier::classify_text, module)?)?;
     module.add_function(wrap_pyfunction!(

@@ -586,5 +586,48 @@ class TestClassifier:
         assert len(strat) == 1, f"Minimal should be passthrough: {strat}"
 
 
+# =============================================================================
+# Adaptive Compression Tests
+# =============================================================================
+
+class TestAdaptiveCompression:
+    """Test the adaptive compression pipeline with strategy selection."""
+
+    def test_adaptive_imports(self):
+        from rust_cave_001 import compress_adaptive
+        assert callable(compress_adaptive)
+
+    def test_adaptive_technical_same_as_full(self):
+        from rust_cave_001 import compress_adaptive, compress
+        text = "The database needs an index because the queries are too slow."
+        adaptive = compress_adaptive(text)
+        full = compress(text)
+        assert adaptive == full, f"Technical should match full pipeline"
+
+    def test_adaptive_conversational_preserves_pronouns(self):
+        from rust_cave_001 import compress_adaptive
+        text = "I really think we should look into this."
+        result = compress_adaptive(text)
+        assert "I" in result or "i" in result.lower(), f"Pronoun 'I' should be preserved in conversational: {result}"
+        assert "we" in result, f"Pronoun 'we' should be preserved in conversational: {result}"
+
+    def test_adaptive_minimal_passthrough(self):
+        from rust_cave_001 import compress_adaptive
+        result = compress_adaptive("Need fast queries")
+        assert result == "Need fast queries", f"Minimal should passthrough unchanged: {result}"
+
+    def test_adaptive_preserves_numbers(self):
+        from rust_cave_001 import compress_adaptive
+        result = compress_adaptive("Hash map offers O(1) lookup")
+        assert "O(1)" in result, f"Technical notation preserved: {result}"
+
+    def test_adaptive_reduces_tokens(self):
+        from rust_cave_001 import compress_adaptive, estimate_tokens
+        text = "The database needs an index because the queries are too slow."
+        before = estimate_tokens(text)
+        after = estimate_tokens(compress_adaptive(text))
+        assert after < before, f"Adaptive should reduce tokens: {before} -> {after}"
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
