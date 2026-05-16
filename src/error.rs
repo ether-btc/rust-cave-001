@@ -9,8 +9,10 @@ pub enum CompressionError {
     /// Input is too short to be logically complete
     TooShort(String),
     /// Active voice transformation failed (regex or conjugation issue)
+    #[allow(dead_code)]
     VoiceTransformFailed(String),
     /// Text is empty
+    #[allow(dead_code)]
     EmptyInput,
     /// Pipeline reached inconsistent state
     PipelineError(String),
