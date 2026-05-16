@@ -336,7 +336,6 @@ fn expand_contractions(text: &str) -> String {
         ("dunno", "do not know"),
         ("cmon", "come on"),
         ("cos", "because"),
-        ("cause", "because"),
     ] {
         // Case-insensitive word-boundary replacement for each contraction
         let pattern_str = format!(r"(?i)\b{}\b", regex::escape(contraction));
@@ -396,10 +395,11 @@ fn remove_intensifiers(text: &str) -> String {
     result.trim().to_string()
 }
 
-// Remove connectives (because, however, therefore, but)
+// Remove connectives (because, however, therefore, but, and, or)
 // Replaces with space to prevent word merging (case-insensitive)
 fn eliminate_connectives(text: &str) -> String {
-    let pattern = Regex::new(r"(?i)\s*\b(because|however|therefore|but)\b,?\s*").unwrap();
+    // Coordinating and subordinating conjunctions
+    let pattern = Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or)\b,?\s*").unwrap();
     pattern.replace_all(text, " ").trim().to_string()
 }
 
@@ -567,19 +567,20 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
             result = normalize_present_tense(&result)?;
         }
 
-        // Remove copular "be" verbs (is, are, was, were, am, be, been, being)
-        if strategy.is_none_or(|s| s.contains("remove_copular_be")) {
-            result = remove_copular_be(&result);
-        }
-
-        // Remove articles
+        // Remove articles — runs first (highest min-word guard: 3)
         if strategy.is_none_or(|s| s.contains("remove_articles")) {
             result = remove_articles(&result);
         }
 
-        // Remove intensifiers
+        // Remove intensifiers — runs before be_removal (min-word guard: 3)
         if strategy.is_none_or(|s| s.contains("remove_intensifiers")) {
             result = remove_intensifiers(&result);
+        }
+
+        // Remove copular "be" verbs (is, are, was, were, am, be, been, being)
+        // Runs after articles+intensifiers so higher-guard rules fire when word count is highest
+        if strategy.is_none_or(|s| s.contains("remove_copular_be")) {
+            result = remove_copular_be(&result);
         }
 
         // Remove connectives

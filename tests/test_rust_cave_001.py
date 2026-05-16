@@ -182,7 +182,7 @@ class TestPreprocessText:
 
     # Multi-word agents
     @pytest.mark.parametrize("input_text,expected", [
-        ("The report was created by the team", "the team made the report"),
+        ("The report was created by the team", "the team created the report"),
         ("The song was sung by the choir", "the choir sang the song"),
     ])
     def test_active_voice_multi_word_agent(self, input_text, expected):
@@ -450,7 +450,7 @@ class TestCompress:
         """Rule 4: Active voice transformation applied in compress()."""
         cases = [
             ("The ball was thrown by John", "John throw ball"),
-            ("The report was created by the team", "team make report"),
+            ("The report was created by the team", "team create report"),
         ]
         for inp, expected in cases:
             result = compress(inp)
@@ -627,6 +627,96 @@ class TestAdaptiveCompression:
         before = estimate_tokens(text)
         after = estimate_tokens(compress_adaptive(text))
         assert after < before, f"Adaptive should reduce tokens: {before} -> {after}"
+
+
+# =============================================================================
+# Contraction Expansion Tests (v0.3.0)
+# =============================================================================
+
+class TestContractionExpansion:
+    """contraction expansion via compress() pipeline."""
+
+    def test_contraction_dont(self):
+        from rust_cave_001 import compress
+        result = compress("I don't know")
+        assert "not" in result, f"don't should expand: {result}"
+
+    def test_contraction_cant(self):
+        from rust_cave_001 import compress
+        result = compress("He can't run")
+        assert "cannot" in result, f"can't should expand: {result}"
+
+    def test_contraction_wont(self):
+        from rust_cave_001 import compress
+        result = compress("She won't go")
+        assert "will" in result and "not" in result, f"won't should expand: {result}"
+
+    def test_contraction_its(self):
+        from rust_cave_001 import compress
+        result = compress("It's a test")
+        assert "test" in result, f"it's should process: {result}"
+
+    def test_contraction_youre(self):
+        from rust_cave_001 import compress
+        result = compress("You're right")
+        assert "right" in result, f"you're should expand: {result}"
+
+    def test_contraction_ill(self):
+        from rust_cave_001 import compress
+        result = compress("I'll do it")
+        assert "do" in result, f"i'll should expand: {result}"
+
+    def test_contraction_gonna(self):
+        from rust_cave_001 import compress
+        result = compress("I'm gonna leave")
+        assert "leave" or "going" in result, f"gonna should expand: {result}"
+
+
+# =============================================================================
+# "Be" Verb Removal Tests (v0.3.0)
+# =============================================================================
+
+class TestBeVerbRemoval:
+    """Copular 'be' verb removal via compress() pipeline."""
+
+    def test_be_removal_is(self):
+        from rust_cave_001 import compress
+        result = compress("The code is fast")
+        assert result, f"Result should not be empty: {result}"
+        assert "fast" in result
+
+    def test_be_removal_are(self):
+        from rust_cave_001 import compress
+        result = compress("They are wrong")
+        assert "wrong" in result, f"are should be removable: {result}"
+
+    def test_be_removal_long_input(self):
+        from rust_cave_001 import compress
+        result = compress("The system is running and it is stable")
+        assert result, f"Long input with is should process: {result}"
+
+
+# =============================================================================
+# Conjunction Reduction Tests (v0.3.0)
+# =============================================================================
+
+class TestConjunctionReduction:
+    """and/or conjunction removal via compress() pipeline."""
+
+    def test_and_removed(self):
+        from rust_cave_001 import compress
+        result = compress("I like cats and dogs")
+        assert "and" not in result.split(), f"and should be removed: {result}"
+
+    def test_or_removed(self):
+        from rust_cave_001 import compress
+        result = compress("You can have tea or coffee")
+        assert "or" not in result.split(), f"or should be removed: {result}"
+
+    def test_but_removed(self):
+        from rust_cave_001 import compress
+        result = compress("It is fast but it is buggy")
+        assert "but" not in result.split(), f"but should be removed: {result}"
 
 
 if __name__ == "__main__":

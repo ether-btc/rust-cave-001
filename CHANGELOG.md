@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-16
+
+### Added
+- **Verb map module** (`src/verb_maps.rs`) — dedicated static conjugation maps extracted from inline code. PP→SP map expanded from 94→306 entries (3.2×), SP→PRES expanded from 147→357 entries (2.4×).
+- **Contraction expansion** — `expand_contractions()` expands 60+ English contractions (n't, 's, 're, 've, 'll, 'd, informal) as first pipeline step.
+- **Copular "be" removal** — `remove_copular_be()` strips is/are/was/were/am/be/been/being with safety guard.
+- **Conjunction reduction** — `and`/`or` added to `eliminate_connectives()` alongside because/however/therefore/but.
+- **Classifier: greeting detection** — conversational classifier now detects "hey/hi/hello/thanks/please" as strong conversational signal.
+- **Classifier: dialogue tightening** — dialogue guard now requires `word_count < 15` to prevent false classification.
+
+### Fixed
+- **16 missing PRES map entries** — passive-to-active verbs like "had" (→have), "dug" (→dig), and 14 same-form no-change verbs (beat→beat, bet→bet, bid→bid, etc.) now properly convert to present tense.
+- **Classifier benchmark samples** — "Hey! How is everything going with the new system?" correctly classified as conversational.
+- **Classifier dialogue/conversational fragmentation** — conversational text with short sentences no longer falsely classifies as dialogue.
+
+### Changed
+- Pipeline expanded to 11 rules (was 9): contraction expansion → active voice → present tense → be removal → article removal → intensifier removal → connective elimination → word limit → completeness check.
+- All classifier strategies updated to include `expand_contractions` and `remove_copular_be` for appropriate text types.
+
 ## [0.2.1] - 2026-05-15
 
 ### Fixed
