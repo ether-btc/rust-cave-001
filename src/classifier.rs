@@ -105,7 +105,7 @@ pub fn classify(text: &str) -> TextType {
     let has_articles = article_density > 0;
     let has_connectives = connective_density > 0;
     let has_pronouns = pronoun_density > 0;
-    let very_short = word_count <= 8;
+    let very_short = word_count <= 4;
 
     if !has_articles && !has_connectives && !has_pronouns && very_short {
         return TextType::AlreadyMinimal;

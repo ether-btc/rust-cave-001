@@ -528,10 +528,62 @@ class TestEdgeCases:
 
     def test_newlines_tabs(self):
         """Newlines and tabs survive round-trip."""
-        text = "line1\n\ttline2\r\nline3"
+        text = "line1\n\t\tline2\r\nline3"
         compressed = my_compress(text.encode("utf-8"))
         decompressed = decompress(compressed).decode("utf-8")
         assert decompressed == text
+
+
+# =============================================================================
+# Classifier Tests
+# =============================================================================
+
+class TestClassifier:
+    """Test the input text classifier."""
+
+    def test_classify_text_imports(self):
+        from rust_cave_001 import classify_text
+        assert callable(classify_text)
+
+    def test_classify_technical(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("Hash map offers O(1) lookup") == "technical"
+
+    def test_classify_conversational(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("Hey, I really think we should look into this.") == "conversational"
+
+    def test_classify_academic(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("The aforementioned methodology demonstrates significant improvement; however, further research is required.") == "academic"
+
+    def test_classify_dialogue(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("Hi! How are you? I am fine. Good!") == "dialogue"
+
+    def test_classify_minimal(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("Need fast queries") == "minimal"
+
+    def test_classify_empty(self):
+        from rust_cave_001 import classify_text
+        assert classify_text("") == "mixed"
+
+    def test_strategy_imports(self):
+        from rust_cave_001 import recommended_strategy_for_text
+        assert callable(recommended_strategy_for_text)
+
+    def test_strategy_variation(self):
+        from rust_cave_001 import recommended_strategy_for_text
+        tech_strat = recommended_strategy_for_text("Hash map offers O(1) lookup. The function parse_input() returns a type.")
+        minimal_strat = recommended_strategy_for_text("Need fast queries")
+        assert len(tech_strat) > len(minimal_strat), "Technical should get more aggressive strategy than minimal"
+
+    def test_strategy_minimal_is_passthrough(self):
+        from rust_cave_001 import recommended_strategy_for_text
+        strat = recommended_strategy_for_text("Need fast queries")
+        assert "logical_completeness" in strat
+        assert len(strat) == 1, f"Minimal should be passthrough: {strat}"
 
 
 if __name__ == "__main__":

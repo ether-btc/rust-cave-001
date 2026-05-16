@@ -764,7 +764,10 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(compress, module)?)?;
     module.add_function(wrap_pyfunction!(normalize_present_tense, module)?)?;
     module.add_function(wrap_pyfunction!(classifier::classify_text, module)?)?;
-    module.add_function(wrap_pyfunction!(classifier::recommended_strategy_for_text, module)?)?;
+    module.add_function(wrap_pyfunction!(
+        classifier::recommended_strategy_for_text,
+        module
+    )?)?;
     Ok(())
 }
 
