@@ -8,13 +8,15 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  PYO3_PYTHON: python3.10
-  PYTHON: python3.10
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    env:
+      # Unset PYO3_PYTHON so maturin auto-detects from PATH (setup-python sets PATH)
+      PYO3_PYTHON: ""
+      PYTHON: ""
     steps:
       - uses: actions/checkout@v4
 
@@ -48,9 +50,8 @@ jobs:
         run: |
           # Diagnose environment
           python3 --version && which python3
-          ls /usr/lib/aarch64-linux-gnu/libpython* 2>/dev/null || echo "no aarch64 libpython"
           ls /usr/lib/x86_64-linux-gnu/libpython* 2>/dev/null || echo "no x86_64 libpython"
-          # Install dev headers
+          # Install dev headers (maturin auto-detects Python from PATH)
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3-dev || true
           pip install --quiet maturin pytest
