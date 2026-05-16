@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;
 use regex::Regex;
 
+mod classifier;
+
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm
@@ -761,6 +763,8 @@ fn rust_cave_001(
     module.add_function(wrap_pyfunction!(preprocess_text, module)?)?;
     module.add_function(wrap_pyfunction!(compress, module)?)?;
     module.add_function(wrap_pyfunction!(normalize_present_tense, module)?)?;
+    module.add_function(wrap_pyfunction!(classifier::classify_text, module)?)?;
+    module.add_function(wrap_pyfunction!(classifier::recommended_strategy_for_text, module)?)?;
     Ok(())
 }
 
