@@ -8,6 +8,8 @@ mod classifier;
 
 mod verb_maps;
 
+mod error;
+
 use std::collections::HashSet;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
@@ -190,7 +192,18 @@ fn is_logically_complete(text: &str) -> bool {
 }
 
 // Split text into sentences based on punctuation (. ! ?)
+// With basic abbreviation protection to avoid splitting on "Dr.", "U.S.A.", etc.
+// Uses OnceLock to compile the abbreviation regex once.
 fn split_into_sentences(text: &str) -> Vec<String> {
+    use std::sync::OnceLock;
+    
+    static ABBREVIATION_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let abbr_re = ABBREVIATION_PATTERN.get_or_init(|| {
+        Regex::new(
+            r"(?i)\b(dr|mr|mrs|ms|prof|sr|jr|st|ave|blvd|etc|vs|inc|ltd|co|dept|est|govt|jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec|u\.s\.?a?|e\.g|i\.e|al)\.$"
+        ).unwrap()
+    });
+    
     let mut sentences = Vec::new();
     let mut current = String::new();
     let mut chars = text.chars().peekable();
@@ -200,23 +213,27 @@ fn split_into_sentences(text: &str) -> Vec<String> {
 
         // Check for sentence-ending punctuation followed by space or end of string
         if c == '.' || c == '!' || c == '?' {
-            // Look ahead: if next char is whitespace or end, this is a sentence boundary
+            // Abbreviation check: if the word before '.' is a known abbreviation, don't split
+            if c == '.' {
+                let trimmed = current.trim();
+                if abbr_re.is_match(trimmed) {
+                    continue; // Not a sentence boundary
+                }
+            }
+            
+            // Look ahead: if next char is whitespace/end, this is a sentence boundary
             match chars.peek() {
                 Some(&next) if next.is_whitespace() => {
-                    // End of sentence - trim and add to list
                     sentences.push(current.trim().to_string());
                     current.clear();
-                    // Skip the whitespace
                     while let Some(_ws) = chars.next_if(|c| c.is_whitespace()) {}
                 }
                 None => {
-                    // End of string - add final sentence
                     sentences.push(current.trim().to_string());
                     current.clear();
                 }
                 _ => {
-                    // Not a sentence boundary (e.g., part of ellipsis "..." or abbreviation)
-                    // Continue building the current sentence
+                    // Not a boundary (e.g., part of "...", decimal number)
                 }
             }
         }
@@ -813,5 +830,24 @@ mod tests {
 
         let empty = split_into_sentences("");
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn test_split_abbreviation_protection() {
+        // Abbreviation "Dr." should NOT cause a split
+        let result = split_into_sentences("Dr. Smith went to the store.");
+        assert_eq!(result.len(), 1, "Abbreviation 'Dr.' should not split: {:?}", result);
+
+        // "U.S.A." should not cause splits
+        let result2 = split_into_sentences("The U.S.A. is a country.");
+        assert_eq!(result2.len(), 1, "'U.S.A.' should not split: {:?}", result2);
+
+        // "e.g." and "i.e." should not cause splits
+        let result3 = split_into_sentences("Use tools e.g. hammers.");
+        assert_eq!(result3.len(), 1, "'e.g.' should not split: {:?}", result3);
+
+        // Normal sentences still split correctly
+        let result4 = split_into_sentences("First sentence. Second sentence.");
+        assert_eq!(result4.len(), 2, "Normal sentences should split: {:?}", result4);
     }
 }
