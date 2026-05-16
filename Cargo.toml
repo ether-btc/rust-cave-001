@@ -4,6 +4,9 @@ version = "0.3.0"
 edition = "2021"
 description = "Deterministic text compression for LLM token reduction — Rust-native Caveman Compression with Python bindings"
 authors = ["ether-btc"]
+license = "MIT"
+repository = "https://github.com/ether-btc/rust-cave-001"
+homepage = "https://github.com/ether-btc/rust-cave-001"
 
 [lib]
 name = "rust_cave_001"
