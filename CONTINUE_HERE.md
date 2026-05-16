@@ -1,8 +1,15 @@
 # rust-cave-001 — Session Reference (May 16, 2026)
 
-## Resume Here
+## Resume Here — Stage 1 Complete (Verb Map Expansion)
 
-Code audit complete and fixes applied (v0.2.1). **Next: build the self-learning framework** — strategy selector that picks compression rules per input type.
+Stage 1: **Verb map expansion** complete. Inline maps extracted to `src/verb_maps.rs`.
+- PAST_PARTICIPLE_TO_SIMPLE_PAST: 94 → **192 entries** (2x coverage)
+- SIMPLE_PAST_TO_PRESENT: 147 → **220+ entries** (50% increase)
+- Classifier Dialogue detection tightened (word_count < 15 guard)
+- Classifier now detects conversational greetings ("hey", "hi", "hello", etc.)
+- All 17 Rust tests, 82 Python tests pass, benchmarks sustained at 48.4% avg token reduction
+
+**Next: Stage 2** — Contraction expansion rule + "be" verb removal.
 
 ### Quickstart
 ```
@@ -10,7 +17,7 @@ git clone https://github.com/ether-btc/rust-cave-001
 cd rust-cave-001
 source .venv/bin/activate
 maturin develop --release
-pytest tests/ -v        # 66 tests, all pass
+pytest tests/ -v        # 82 tests, all pass
 python3 benchmarks/benchmark.py
 ```
 
@@ -18,47 +25,30 @@ python3 benchmarks/benchmark.py
 | What | Value |
 |------|-------|
 | Repo | `github.com/ether-btc/rust-cave-001` (master) |
-| Latest commit | `ce9088c` — "feat: add input text classifier for adaptive compression strategies" |
-| Tags | v0.1.0, v0.1.1, v0.2.0, [v0.2.1](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.2.1) |
-| PyPI | [![PyPI](https://img.shields.io/pypi/v/rust-cave-001.svg)](https://pypi.org/project/rust-cave-001/) |
-| CI | Green — 82/82 tests, benchmarks 48.4% avg token reduction |
-| Current version | **v0.2.1** (deduplicated maps, clean docs, adaptive compression operational) |
-| Ceiling | 48.4% static — adaptive strategy via `compress_adaptive()` is self-learning framework MVP |
+| Latest commit | `238d23a` — feat: wire classifier into compress_adaptive |
+| Tags | v0.1.0, v0.1.1, v0.2.0, v0.2.1 |
+| CI | Green — Rust clippy clean, 17/17 Rust tests, 82/82 Python tests |
+| Current version | **v0.2.1** (working on v0.3.0) |
+| Verb maps | `src/verb_maps.rs` — 192 pp→sp, 220+ sp→pres |
+| Ceiling | 48.4% static — adaptive strategy via `compress_adaptive()` is self-learning MVP |
+
 ### What Exists
-- **9 compression rules** in pipeline (`src/lib.rs`, 842 lines)
-- **Input classifier** (`src/classifier.rs`, 349 lines) — 13-heuristic text type detection
+- **9 compression rules** in pipeline (`src/lib.rs`)
+- **Input classifier** (`src/classifier.rs`) — 13-heuristic text type detection + greeting detection
+- **Verb maps module** (`src/verb_maps.rs`) — static verb conjugation maps
 - **Adaptive compression API** — `compress_adaptive()` auto-selects rule subset per input type
 - **Benchmark suite** (`benchmarks/benchmark.py`) — 9 text types + strategy comparison oracle
-- **82 passing tests** (`tests/test_rust_cave_001.py`) + classifier + adaptive tests
-- **ATTRIBUTION.md** — credits upstream SPEC repos
-- **Verb maps**: 94 unique entries (transform_active_voice) + 147 unique entries (normalize_present_tense)
+- **82 passing tests** — all pass, 17 Rust unit tests
 
-### Latest Audit Findings Addressed (v0.2.1)
-- ✅ Deduplicated verb conjugation maps (removed 27 duplicate entries)
-- ✅ Bumped Cargo.toml/pyproject.toml v0.2.0 → v0.2.1
-- ✅ De-hermesified pyproject.toml description for public consumption
-- ✅ Fixed build.rs DEP_PYO3_ABI3 check (PY312 → PY310)
-- ✅ Updated BENCHMARKS.md version reference (v0.1.0 → v0.2.1)
-- ✅ Updated README.md verb count (~60 → ~100)
-- ✅ Added 26 direct tests for normalize_present_tense (irregular, regular, same-form, capitalization)
-- ✅ Removed dead code comment in preprocess_text
-- ✅ CI formatting fixed (`cargo fmt` pass on build.rs + lib.rs)
+### Stage Roadmap
 
-### Latest Feature (v0.2.1+)
-- ✅ **Input text classifier** (`src/classifier.rs`) — detects 6 text types using 13 heuristic dimensions
-- ✅ **Adaptive compression** (`compress_adaptive()`) — wires classifier into pipeline with per-type strategy selection
-- ✅ **Benchmark oracle** — compares full vs adaptive across all 9 text types; 0 regressions
-- ✅ **6 direct adaptive tests** — pronouns preserved in conversational, passthrough for minimal, numbers preserved in technical
+| Stage | Feature | Status |
+|-------|---------|--------|
+| 1 | Verb map expansion (94→192 pp, 147→220 pres) | ✅ Complete |
+| 2 | Contraction expansion ("don't"→"do not") + "be" verb removal | 🔲 Next |
+| 3 | Conjunction reduction ("and"/"but"/"or" clause compression) | 🔲 Planned |
+| 4 | v0.3.0 release — tag, PyPI, crates.io | 🔲 Planned |
 
-### Next Steps (priority order)
-1. **Expand verb map** — 94 → 150+ unique entries in transform_active_voice (~60 missing irregular verbs)
-2. **Publish v0.3.0 to PyPI** with adaptive compression and expanded verb map
-3. **crates.io publish** — `cargo publish` for Rust-native use without Python
-4. **MCP server integration** — expose as MCP tool (reference: squeez architecture)
-
-### Upstream Repos to Watch
-| Repo | Why | Absorb When |
-|------|-----|-------------|
-| wilpel/caveman-compression | Direct SPEC upstream, MLM/LLM modes | Framework phase |
-| JuliusBrussee/caveman (37K ⭐) | Market validation, /caveman-compress | Post-framework |
-| claudioemmanuel/squeez (~2K ⭐) | MCP server architecture, Rust hooks | Framework phase |
+### Notes
+- "dealt with"/"carried out" phrasal verbs in passive voice are a pre-existing regex limitation
+- PyPI publish requires `MATURIN_PYPI_TOKEN` env var

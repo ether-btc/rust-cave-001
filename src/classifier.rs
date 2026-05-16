@@ -128,13 +128,19 @@ pub fn classify(text: &str) -> TextType {
         return TextType::Technical;
     }
 
-    // Dialogue check: very short sentences, high pronoun density, simple vocab
-    if short_sentence_ratio > 0.6 && pronoun_density > 3 && avg_word_len < 4.5 {
+    // Dialogue check: very short sentences, high pronoun density, simple vocab,
+    // must be a genuinely brief exchange (total text < 15 words)
+    if short_sentence_ratio > 0.6 && pronoun_density > 3 && avg_word_len < 4.5 && word_count < 15 {
         return TextType::Dialogue;
     }
 
-    // Conversational: high pronouns, avg word len < 5
-    if pronoun_density > 4 && avg_word_len < 5.0 {
+    // Conversational: high pronouns and avg word len < 5, OR conversational greetings
+    let has_greeting = count_pattern(
+        text,
+        r"(?i)\b(hi|hey|hello|thanks|thank|please|sorry|yeah|okay|ok|yep|nope|oh|ah|wow|hmm|um|uh)\b",
+    ) as f64
+        * scale;
+    if (pronoun_density > 4 && avg_word_len < 5.0) || has_greeting > 1.0 {
         return TextType::Conversational;
     }
 

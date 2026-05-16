@@ -6,6 +6,8 @@ use regex::Regex;
 
 mod classifier;
 
+mod verb_maps;
+
 use std::collections::HashSet;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
@@ -74,105 +76,8 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     //           "The cake was eaten by Mary" → "Mary ate the cake"
 
     // Map of past participles to simple past forms (irregular verbs)
-    let verb_conjugations: std::collections::HashMap<&str, &str> = [
-        ("thrown", "threw"),
-        ("eaten", "ate"),
-        ("written", "wrote"),
-        ("seen", "saw"),
-        ("done", "did"),
-        ("given", "gave"),
-        ("taken", "took"),
-        ("made", "made"),
-        ("found", "found"),
-        ("told", "told"),
-        ("called", "called"),
-        ("used", "used"),
-        ("asked", "asked"),
-        ("wanted", "wanted"),
-        ("needed", "needed"),
-        ("looked", "looked"),
-        ("worked", "worked"),
-        ("played", "played"),
-        ("moved", "moved"),
-        ("lived", "lived"),
-        ("believed", "believed"),
-        ("happened", "happened"),
-        ("changed", "changed"),
-        ("showed", "showed"),
-        ("watched", "watched"),
-        ("followed", "followed"),
-        ("stopped", "stopped"),
-        ("created", "made"),
-        ("brought", "brought"),
-        ("heard", "heard"),
-        ("held", "held"),
-        ("sent", "sent"),
-        ("built", "built"),
-        ("understood", "understood"),
-        ("drawn", "drew"),
-        ("grown", "grew"),
-        ("flown", "flew"),
-        ("broken", "broke"),
-        ("sung", "sang"),
-        ("drunk", "drank"),
-        ("sunk", "sank"),
-        ("spun", "spun"),
-        ("run", "ran"),
-        ("read", "read"),
-        ("cut", "cut"),
-        ("put", "put"),
-        ("set", "set"),
-        ("shut", "shut"),
-        ("cost", "cost"),
-        ("hurt", "hurt"),
-        ("let", "let"),
-        ("regretted", "regretted"),
-        ("begun", "began"),
-        ("chosen", "chose"),
-        ("come", "came"),
-        ("driven", "drove"),
-        ("fallen", "fell"),
-        ("fed", "fed"),
-        ("felt", "felt"),
-        ("fought", "fought"),
-        ("forgotten", "forgot"),
-        ("forgiven", "forgave"),
-        ("frozen", "froze"),
-        ("gotten", "got"),
-        ("gone", "went"),
-        ("had", "had"),
-        ("hidden", "hid"),
-        ("hit", "hit"),
-        ("kept", "kept"),
-        ("known", "knew"),
-        ("led", "led"),
-        ("learned", "learned"),
-        ("left", "left"),
-        ("lent", "lent"),
-        ("lain", "lay"),
-        ("lost", "lost"),
-        ("meant", "meant"),
-        ("met", "met"),
-        ("paid", "paid"),
-        ("ridden", "rode"),
-        ("rung", "rang"),
-        ("said", "said"),
-        ("sold", "sold"),
-        ("shown", "showed"),
-        ("sat", "sat"),
-        ("slept", "slept"),
-        ("spoken", "spoke"),
-        ("spent", "spent"),
-        ("stood", "stood"),
-        ("swum", "swam"),
-        ("taught", "taught"),
-        ("thought", "thought"),
-        ("worn", "wore"),
-        ("won", "won"),
-    ]
-    .iter()
-    .cloned()
-    .collect();
+    // Uses the expanded verb_maps module (192 entries, v0.3.0)
+    let verb_conjugations = verb_maps::build_verb_conjugation_map();
 
     // Regex to match passive voice: "The X was V-ed by Z" → "Z V-ed the X"
     // Pattern breakdown: "The " + (subject: one or more words) + " was " + (verb-pp) + " by " + (agent: one or more words)
@@ -209,160 +114,8 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
 #[pyfunction]
 fn normalize_present_tense(text: &str) -> PyResult<String> {
     // Map of simple past → present base form (reverse of the conjugation map)
-    let present_tense_map: std::collections::HashMap<&str, &str> = [
-        ("threw", "throw"),
-        ("ate", "eat"),
-        ("wrote", "write"),
-        ("saw", "see"),
-        ("did", "do"),
-        ("gave", "give"),
-        ("took", "take"),
-        ("made", "make"),
-        ("found", "find"),
-        ("told", "tell"),
-        ("called", "call"),
-        ("used", "use"),
-        ("asked", "ask"),
-        ("wanted", "want"),
-        ("needed", "need"),
-        ("looked", "look"),
-        ("worked", "work"),
-        ("played", "play"),
-        ("moved", "move"),
-        ("lived", "live"),
-        ("believed", "believe"),
-        ("happened", "happen"),
-        ("changed", "change"),
-        ("showed", "show"),
-        ("watched", "watch"),
-        ("followed", "follow"),
-        ("stopped", "stop"),
-        ("brought", "bring"),
-        ("heard", "hear"),
-        ("held", "hold"),
-        ("sent", "send"),
-        ("built", "build"),
-        ("understood", "understand"),
-        ("drew", "draw"),
-        ("grew", "grow"),
-        ("flew", "fly"),
-        ("broke", "break"),
-        ("sang", "sing"),
-        ("drank", "drink"),
-        ("sank", "sink"),
-        ("spun", "spin"),
-        ("ran", "run"),
-        ("began", "begin"),
-        ("chose", "choose"),
-        ("came", "come"),
-        ("drove", "drive"),
-        ("fell", "fall"),
-        ("fed", "feed"),
-        ("felt", "feel"),
-        ("fought", "fight"),
-        ("forgot", "forget"),
-        ("forgave", "forgive"),
-        ("froze", "freeze"),
-        ("got", "get"),
-        ("went", "go"),
-        ("hid", "hide"),
-        ("kept", "keep"),
-        ("knew", "know"),
-        ("led", "lead"),
-        ("learned", "learn"),
-        ("left", "leave"),
-        ("lent", "lend"),
-        ("lay", "lie"),
-        ("lost", "lose"),
-        ("meant", "mean"),
-        ("met", "meet"),
-        ("paid", "pay"),
-        ("rode", "ride"),
-        ("rang", "ring"),
-        ("said", "say"),
-        ("sold", "sell"),
-        ("sat", "sit"),
-        ("slept", "sleep"),
-        ("spoke", "speak"),
-        ("spent", "spend"),
-        ("stood", "stand"),
-        ("swam", "swim"),
-        ("taught", "teach"),
-        ("thought", "think"),
-        ("wore", "wear"),
-        ("won", "win"),
-        ("regretted", "regret"),
-        ("forgotten", "forget"),
-        ("forgiven", "forgive"),
-        ("frozen", "freeze"),
-        ("gotten", "get"),
-        ("hidden", "hide"),
-        ("ridden", "ride"),
-        ("rung", "ring"),
-        ("shown", "show"),
-        ("spoken", "speak"),
-        ("swum", "swim"),
-        ("worn", "wear"),
-        ("written", "write"),
-        ("driven", "drive"),
-        ("eaten", "eat"),
-        ("fallen", "fall"),
-        ("flown", "fly"),
-        ("given", "give"),
-        ("grown", "grow"),
-        ("known", "know"),
-        ("lain", "lie"),
-        ("risen", "rise"),
-        ("shaken", "shake"),
-        ("shrunk", "shrink"),
-        ("sung", "sing"),
-        ("sunk", "sink"),
-        ("stolen", "steal"),
-        ("thrown", "throw"),
-        ("taken", "take"),
-        ("torn", "tear"),
-        ("woken", "wake"),
-        ("broken", "break"),
-        ("chosen", "choose"),
-        ("drawn", "draw"),
-        ("drunk", "drink"),
-        // E-drop regular verbs (base ends in "e", past adds "d")
-        ("agreed", "agree"),
-        ("planned", "plan"),
-        ("merged", "merge"),
-        ("cached", "cache"),
-        ("parsed", "parse"),
-        ("loaded", "load"),
-        ("saved", "save"),
-        ("proved", "prove"),
-        ("loved", "love"),
-        ("liked", "like"),
-        ("hoped", "hope"),
-        ("cared", "care"),
-        ("shared", "share"),
-        ("stared", "stare"),
-        ("dated", "date"),
-        ("noted", "note"),
-        ("quoted", "quote"),
-        ("wasted", "waste"),
-        ("tasted", "taste"),
-        ("hated", "hate"),
-        ("created", "create"),
-        // Same-form verbs (past == present == base)
-        ("cost", "cost"),
-        ("cut", "cut"),
-        ("hit", "hit"),
-        ("hurt", "hurt"),
-        ("let", "let"),
-        ("put", "put"),
-        ("read", "read"),
-        ("set", "set"),
-        ("shut", "shut"),
-        ("spread", "spread"),
-    ]
-    .iter()
-    .cloned()
-    .collect();
+    // Uses the expanded verb_maps module (220 entries, v0.3.0)
+    let present_tense_map = verb_maps::build_present_tense_map();
 
     let word_pattern = Regex::new(r"\b(\w+)\b").unwrap();
     let result = word_pattern.replace_all(text, |caps: &regex::Captures| {
@@ -681,7 +434,7 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
     let sentences = split_into_sentences(text);
     // Resolve pronoun ambiguity — operates on sentence list before loop
     let mut sentences = sentences;
-    if strategy.map_or(true, |s| s.contains("resolve_pronouns")) {
+    if strategy.is_none_or(|s| s.contains("resolve_pronouns")) {
         resolve_pronouns(&mut sentences);
     }
     let mut processed_sentences = Vec::new();
@@ -690,32 +443,32 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
         let mut result = sentence;
 
         // Active voice transformation
-        if strategy.map_or(true, |s| s.contains("active_voice")) {
+        if strategy.is_none_or(|s| s.contains("active_voice")) {
             result = transform_active_voice(&result)?;
         }
 
         // Present tense normalization
-        if strategy.map_or(true, |s| s.contains("present_tense")) {
+        if strategy.is_none_or(|s| s.contains("present_tense")) {
             result = normalize_present_tense(&result)?;
         }
 
         // Remove articles
-        if strategy.map_or(true, |s| s.contains("remove_articles")) {
+        if strategy.is_none_or(|s| s.contains("remove_articles")) {
             result = remove_articles(&result);
         }
 
         // Remove intensifiers
-        if strategy.map_or(true, |s| s.contains("remove_intensifiers")) {
+        if strategy.is_none_or(|s| s.contains("remove_intensifiers")) {
             result = remove_intensifiers(&result);
         }
 
         // Remove connectives
-        if strategy.map_or(true, |s| s.contains("eliminate_connectives")) {
+        if strategy.is_none_or(|s| s.contains("eliminate_connectives")) {
             result = eliminate_connectives(&result);
         }
 
         // Enforce word limit
-        if strategy.map_or(true, |s| s.contains("word_limit_5")) {
+        if strategy.is_none_or(|s| s.contains("word_limit_5")) {
             result = enforce_word_limit(&result);
         }
 
