@@ -394,9 +394,8 @@ fn remove_copular_be(text: &str) -> String {
 
     static BE_PATTERN: OnceLock<Regex> = OnceLock::new();
     static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
-    let be_verb_pattern = BE_PATTERN.get_or_init(|| {
-        Regex::new(r"(?i)\b(is|are|was|were|am|be|been|being)\b").unwrap()
-    });
+    let be_verb_pattern = BE_PATTERN
+        .get_or_init(|| Regex::new(r"(?i)\b(is|are|was|were|am|be|been|being)\b").unwrap());
     let re_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
 
     let words: Vec<&str> = text.split_whitespace().collect();
