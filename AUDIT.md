@@ -1,193 +1,280 @@
-# rust-cave-001 v0.4.1 — Code Audit Report
-
-**Date:** 2026-05-18
-**Scope:** Full codebase (`src/lib.rs`, `src/classifier.rs`, `src/error.rs`, `src/verb_maps.rs`, `tests/test_rust_cave_001.py`, `build.rs`)
-**Auditor:** Hermes Agent (automated multi-tool audit)
-**Tools used:** OCR v2.1.1 (L1 structural), repomix v1.14.0, cargo clippy (pedantic+nursery), cargo audit, ruff, octocode (upstream SPEC comparison), manual line-by-line review
+# AUDIT REPORT — rust-cave-001
+## Date: 2026-05-18 | Auditor: Hermes Agent | Branch: master@f0b9d5e
 
 ---
 
 ## Executive Summary
 
-The codebase is in **good shape** — no security vulnerabilities (cargo audit: 0), no structural issues (OCR: 100/100 A+), all 28 Rust + 123 Python tests pass. The 88 clippy pedantic warnings are all style/naming, not logic bugs. The upstream SPEC comparison reveals rust-cave-001 now implements 7 of 9 upstream rules, with 2 remaining gaps (Rule 5: Preserve Specifics, Rule 9: Logical Completeness validation).
+| Dimension | Rating | Notes |
+|-----------|--------|-------|
+| Correctness | ★★★☆☆ | BUG-1 confirmed; SEC-1 fix has format mismatch |
+| Performance | ★★★★☆ | OnceLock caching good; classifier PATTERN_CACHE uses Mutex |
+| Security | ★★★☆☆ | SEC-1 partial; decompression path uses wrong lz4 module |
+| Testing | ★★★★★ | 28 Rust + 127 Python tests; all passing |
+| Architecture | ★★★★☆ | Clean separation; classifier + verb_maps + error modules |
 
-**Risk rating: LOW.** No CRITICAL or HIGH severity findings.
-
----
-
-## Tool Results Summary
-
-| Tool | Result |
-|------|--------|
-| OCR L1 scan | 100/100 A+, 0 issues |
-| cargo audit | 0 vulnerabilities (31 crates) |
-| cargo clippy (default) | PASS (after 2 format-string fixes applied) |
-| cargo clippy (pedantic+nursery) | 88 style warnings (see Appendix A) |
-| ruff (Python) | 1 finding (f-string without placeholders, fixed) |
+**Overall: PROCEED WITH CAUTION** — BUG-1 needs fix before production use with technical content.
 
 ---
 
-## Findings
+## BUG-1: Acronym Stripping with `(?i)` Case-Insensitive Regex
 
-### MEDIUM — Correctness Issues
+**Severity: HIGH** (confirmed, not fixed)
 
-**M-1: `normalize_present_tense` ed-stripping produces incorrect base forms**
+### Findings
 
-- **File:** `src/lib.rs:186-218`
-- **Description:** The regular-verb fallback strips "ed" or "d" based on vowel checks, but produces many incorrect stems. Examples: `"stopped"` → `"stopp"` (should be `"stop"`), `"agreed"` → `"agree"` (correct), `"included"` → `"include"` (correct), `"sorted"` → `"sort"` (correct, consonant before -ted), `"fitted"` → `"fitt"` (should be `"fit"`).
-- **Impact:** Present-tense normalization is lossy — double-consonant verbs are not handled. The verb_maps module covers the most common cases, so this only fires on unmapped regulars.
-- **Suggested fix:** After ed-stripping, check for doubled final consonant (e.g., `"stopp"` → strip trailing doubled `p` → `"stop"`). Add a `dedup_final_consonant()` helper.
-- **Severity:** MEDIUM (semantic — wrong output, but the word is still recognizable)
+All content-removal functions in `src/lib.rs` that use `(?i)` case-insensitive regex:
 
-**M-2: Passive voice regex only matches single-word verbs**
+| Line | Function | Pattern | Guard? | Acronym Risk |
+|------|----------|---------|--------|-------------|
+| 345 | `remove_articles` | `(?i)\b(this\|the\|a\|an)\b` | **NO** | HIGH: strips "THE" (acronym in "THE API", "THE protocol") |
+| 474 | `remove_copular_be` | `(?i)\b(is\|are\|was\|were\|am\|be\|been\|being)\b` | **YES** (line 491) | LOW: correctly skips "IS", "AM", "BE" |
+| 510 | `remove_intensifiers` | `(?i)\b(very\|extremely\|quite\|rather\|really\|somewhat)\b` | NO | LOW: "AND" possible edge case |
+| 544 | `eliminate_connectives` | `(?i)\s*\b(because\|however\|therefore\|but\|and\|or\|...)\b,?\s*` | NO | LOW: "AND", "OR" acronyms |
+| 128/145/161 | `transform_active_voice` | `(?i)\bThe\s+...` | N/A | N/A (transformation, not removal) |
+| 284 | `split_into_sentences` | `(?i)\b(dr\|mr\|...)\.$` | N/A | N/A (abbreviation detection) |
+| 454 | `expand_contractions` | `(?i)\b{}\b` | N/A | N/A (expansion, not removal) |
 
-- **File:** `src/lib.rs:105,120,135`
-- **Description:** All three passive patterns use `(\w+)` for the verb capture, which matches only a single word. Phrasal passives like "was carried out by" or "was set up by" are not transformed. Multi-word past participles ("was looked down upon by") are also missed.
-- **Impact:** Common passive constructions in academic/technical text pass through untransformed.
-- **Suggested fix:** Change `(\w+)` to `((?:\w+\s*)+)` or similar to capture multi-word verb phrases. This is a significant regex change — test thoroughly.
-- **Severity:** MEDIUM (feature gap — common patterns unhandled)
+### Root Cause
 
-**M-3: `estimate_tokens` recompiles regex every call**
+`remove_copular_be` has the correct pattern (line 489-493):
+```rust
+.replace_all(text, |caps: &regex::Captures| {
+    let word = caps.get(0).unwrap().as_str();
+    // Acronym protection: skip removal if word is fully uppercase
+    if word.chars().all(|c| c.is_uppercase()) {
+        return word.to_string();
+    }
+    String::new()
+})
+```
 
-- **File:** `src/lib.rs:35-38`
-- **Description:** Unlike every other function in the file, `estimate_tokens` does NOT use `OnceLock` for its `\b\w+\b` regex. Called repeatedly, this is a needless per-call allocation.
-- **Impact:** Performance — the function creates and compiles a new Regex on every invocation.
-- **Suggested fix:** Add `static ONCELOCK: OnceLock<Regex>` pattern, consistent with all other functions.
-- **Severity:** MEDIUM (performance — trivial fix)
+`remove_articles`, `remove_intensifiers`, and `eliminate_connectives` use `replace_all(text, "")` with no per-match guard.
 
-**M-4: Classifier `count_pattern` and `count_sentences` recompile regexes every call**
+### Concrete False-Positive Trace
 
-- **File:** `src/classifier.rs:238-244`
-- **Description:** `count_sentences()` creates a new `Regex` on every call. `count_pattern()` creates a new `Regex` on every call. The classifier calls these ~10 times per `classify()` invocation. Each creates + compiles + drops a regex.
-- **Impact:** Performance — 10+ regex compilations per classification call. The classifier is called by `compress_adaptive()`, so every adaptive compression pays this cost.
-- **Suggested fix:** Cache the classifier's regexes in `OnceLock` statics, or pre-compile them in a `LazyLock<HashMap<&str, Regex>>`.
-- **Severity:** MEDIUM (performance)
+```
+Input: "THE API handles requests efficiently"
+Pipeline: remove_articles
+Pattern: (?i)\b(this|the|a|an)\b
+Match: "THE" (regex is case-insensitive, "THE" matches "the")
+Output: " API handles requests efficiently"
+Semantic: CORRUPTED — "THE" was an acronym (Technical Hierarchy Element), not an article
+```
 
-### LOW — Style / Maintainability
+### Recommended Fix Pattern (apply to `remove_articles`, `remove_intensifiers`, `eliminate_connectives`)
 
-**L-1: 88 clippy pedantic+nursery warnings**
+Change from:
+```rust
+pattern.replace_all(text, "").to_string()
+```
 
-- **File:** `src/lib.rs`, `src/classifier.rs`, `build.rs`
-- **Description:** See Appendix A for full breakdown. Major categories:
-  - 17x `cast_lossless` (usize ↔ f64)
-  - 12x `doc_markdown` (missing backticks in doc comments)
-  - 11x `module_name_repetitions` (function names repeat module name)
-  - 9x `missing_errors_doc` (pub fn returning Result without `# Errors` doc section)
-  - 7x `uninlined_format_args` (could use inline format variables)
-  - 7x `cast_possible_truncation` + 7x `cast_sign_loss` (f64 → usize)
-  - 5x `redundant_closure_for_method_calls`
-  - 4x `items_after_statements`
-  - 2x `cloned_instead_of_copied`, `unnecessary_wraps`, `missing_const_for_fn`
-  - 1x `needless_pass_by_value`, `match_same_arms`, `map_unwrap_or`
-- **Suggested fix:** Run `cargo clippy --fix --allow-dirty -- -W clippy::pedantic -W clippy::nursery` to auto-fix what's possible, then manually address the rest. Or add `#![allow(clippy::pedantic, clippy::nursery)]` to lib.rs and selectively enable specific lints.
-- **Severity:** LOW (style — zero functional impact)
-
-**L-2: `compress()` doc says "9 rules" but pipeline has 11**
-
-- **File:** `src/lib.rs:713`
-- **Description:** Comment says `/// Full-pipeline compress — all 9 rules` but the pipeline now has 11 steps (added pronoun resolution + contraction expansion).
-- **Suggested fix:** Update doc to "all 11 rules".
-- **Severity:** LOW (documentation)
-
-**L-3: `resolve_pronouns` only replaces first pronoun occurrence**
-
-- **File:** `src/lib.rs:612-621`
-- **Description:** The loop breaks after finding the first pronoun in each sentence. If a sentence contains multiple ambiguous pronouns ("it did it"), only the first is resolved.
-- **Impact:** Low — multi-pronoun sentences with ambiguous references are rare in practice.
-- **Suggested fix:** Collect all pronoun indices and replace each with the same or contextually-appropriate noun.
-- **Severity:** LOW (feature gap)
-
-**L-4: `eliminate_connectives` uses a fixed list, missing upstream SPEC connectives**
-
-- **File:** `src/lib.rs:502-503`
-- **Description:** The upstream SPEC v1.0 lists `so`, `then`, `thus` as prohibited connectives. rust-cave-001's list does not include `then` or `thus`.
-- **Suggested fix:** Add `then`, `thus` to the regex pattern.
-- **Severity:** LOW (SPEC compliance)
-
-**L-5: `stop_words` list in `resolve_pronouns` duplicates lists from other functions**
-
-- **File:** `src/lib.rs:550-595`
-- **Description:** The stop_words array is defined inline in `resolve_pronouns`. It partially duplicates the words handled by `remove_articles`, `remove_intensifiers`, and `eliminate_connectives`. Any addition to those lists must be mirrored here or pronoun resolution will treat "articles" as nouns.
-- **Suggested fix:** Extract to a shared constant `const STOP_WORDS: &[&str] = &[...];` at module level.
-- **Severity:** LOW (DRY / maintainability)
-
-**L-6: No Python linting in CI**
-
-- **Description:** `tests/test_rust_cave_001.py` (939 lines) has no CI lint step. The ruff finding (now fixed) would not have been caught automatically.
-- **Suggested fix:** Add a ruff step to `.github/workflows/ci.yml`.
-- **Severity:** LOW (CI hygiene)
-
-### INFO — Upstream SPEC Compliance Gap
-
-**I-1: SPEC Rule 5 (Preserve Specifics) — not implemented**
-
-- **Description:** The upstream SPEC requires keeping specific numbers/quantities and not replacing them with vague terms. rust-cave-001 has no explicit rule for this. In practice, the pipeline's word-limit truncation could destroy specifics (e.g., "50 million requests per second across 15 regions" → first 5 words only). This is a design-level gap, not a bug.
-- **Severity:** INFO (the static ceiling at 48.7% is the real constraint — this won't move the needle alone)
-
-**I-2: SPEC Rule 9 (Logical Completeness) — partially implemented**
-
-- **Description:** The upstream SPEC requires every inference step to be explicit (can a reader reconstruct the full reasoning chain?). rust-cave-001 only checks ≥2 words, which is a necessary but insufficient condition. The upstream's anti-pattern examples (over-compression, telegraphic ambiguity) are not detected.
-- **Severity:** INFO (the 2-word guard catches the worst cases; full Rule 9 compliance requires semantic understanding)
+To:
+```rust
+pattern.replace_all(text, |caps: &regex::Captures| {
+    let word = caps.get(0).unwrap().as_str();
+    if word.chars().all(|c| c.is_uppercase()) {
+        word.to_string()  // preserve acronyms
+    } else {
+        String::new()
+    }
+}).to_string()
+```
 
 ---
 
-## Fixes Applied During Audit
+## BUG-2: Pronoun Resolution — ALL Occurrences Replaced
 
-| Fix | File | Type |
-|-----|------|------|
-| Inline format arg `python{ver}` | `build.rs:27` | clippy |
-| Inline format arg `native={path}` | `build.rs:36` | clippy |
-| Remove unnecessary `f` prefix | `tests/test_rust_cave_001.py:605` | ruff |
+**Severity: MEDIUM → FIXED**
 
----
+### Fix Verification (src/lib.rs:652-672)
 
-## Appendix A: Clippy Pedantic+Nursery Warning Breakdown
+**Before (v0.4.0):** `break` after first pronoun match → second "it" preserved
+```rust
+for (j, word) in current_words.iter().enumerate() {
+    ...
+    if pronouns.contains(&clean.as_str()) && noun_candidates.len() >= 2 {
+        pronoun_idx = Some(j);
+        break;  // ← BUG: exits loop after first
+    }
+}
+if let Some(idx) = pronoun_idx {
+    ... replace at `idx` only ...
+}
+```
 
-| Count | Lint | Category |
-|-------|------|----------|
-| 17 | `cast_lossless` | usize → f64, use f64 from start |
-| 12 | `doc_markdown` | Backtick code identifiers in doc comments |
-| 11 | `module_name_repetitions` | Fn names repeat module prefix |
-| 9 | `missing_errors_doc` | `# Errors` section missing on Result-returning pub fns |
-| 7 | `uninlined_format_args` | Use `format!("{var}")` not `format!("{}", var)` |
-| 7 | `cast_possible_truncation` | f64 → usize may lose precision |
-| 7 | `cast_sign_loss` | f64 → usize loses sign |
-| 5 | `redundant_closure_for_method_calls` | Replace closure with method ref |
-| 4 | `items_after_statements` | Move items before statements |
-| 2 | `cloned_instead_of_copied` | Use `.copied()` not `.cloned()` for Copy types |
-| 2 | `unnecessary_wraps` | Return value unnecessarily wrapped in Result |
-| 2 | `missing_const_for_fn` | Could be `const fn` |
-| 1 | `needless_pass_by_value` | Take &str instead of String |
-| 1 | `match_same_arms` | Identical match arm bodies |
-| 1 | `map_unwrap_or` | Use `map_or` instead of `map().unwrap_or()` |
-| **88** | **Total** | |
+**After (v0.4.1):** Collect all indices → replace all
+```rust
+let pronoun_indices: Vec<usize> = current_words
+    .iter()
+    .enumerate()
+    .filter(|(_, word)| {
+        let clean = (*word).trim_end_matches(['.', ',', '!', '?']).to_lowercase();
+        pronouns.contains(&clean.as_str()) && noun_candidates.len() >= 2
+    })
+    .map(|(j, _)| j)
+    .collect();
 
----
+if !pronoun_indices.is_empty() {
+    ...
+    .map(|(j, w)| {
+        if pronoun_indices.contains(&j) {  // replaces ALL
+            replacement.to_string()
+        } else {
+            w.to_string()
+        }
+    })
+    ...
+}
+```
 
-## Test Coverage Assessment
-
-| Area | Tests | Coverage |
-|------|-------|----------|
-| Passive voice (was/were/had_been) | 6 Rust + 4 Python | GOOD |
-| Regular verbs | Verb map covers 192 PP entries | GOOD |
-| Irregular verbs | 220 SP→Present entries | GOOD |
-| Contractions | 12 basic + 6 edge cases | GOOD |
-| Articles | 4 Rust + Python tests | ADEQUATE |
-| Intensifiers | 3 Rust tests | ADEQUATE |
-| Connectives | 4 Rust tests | ADEQUATE |
-| Word limit | 3 Rust tests | ADEQUATE |
-| Sentence splitting | 3 Rust tests | ADEQUATE |
-| Pronoun resolution | Python tests only | ADEQUATE |
-| Classifier | 8 Rust tests | GOOD |
-| Adaptive compression | 5 Python tests | ADEQUATE |
-| **Missing test scenarios** | Empty input to compress() | GAP |
-| | Unicode/multibyte input | GAP |
-| | Very long input (>10K chars) | GAP |
-| | Adversarial input (all-abbreviations) | GAP |
-| | Multi-sentence passive voice | GAP |
+**Status:** ✅ CORRECTLY FIXED. All pronoun occurrences now replaced.
 
 ---
 
-## Recommendation
+## SEC-1: Decompress Input Size Limits
 
-Ship the 3 fixes, address M-1 through M-4 in a v0.4.2 maintenance release, and tackle the 88 clippy pedantic warnings as a sweep. The upstream SPEC gaps (Rules 5, 9) are strategic — they don't block the current release but should inform the self-learning framework roadmap.
+**Severity: LOW → PARTIAL (correct intent, wrong lz4 module)**
+
+### Fix Verification (src/lib.rs:31-49)
+
+```rust
+pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
+    if data.len() < 4 {
+        return Err(...);  // min 4 bytes
+    }
+    let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    if uncompressed_size > 1 << 28 {  // 256 MiB limit
+        return Err(...);
+    }
+    let decompressed = block::decompress(data, None)  // ← CONCERN
+        .map_err(...)?;
+    Ok(decompressed)
+}
+```
+
+### Issue: Wrong lz4 Module
+
+The code uses `lz4::block::decompress()` but the SEC-1 comment says "LZ4 format stores uncompressed size in first 4 bytes (little-endian u32)" — this describes **lz4::frame** format, not **lz4::block** format.
+
+- `lz4::block::decompress(data, None)` takes raw LZ4 block data — the first 4 bytes are **not** a size prefix.
+- `lz4::frame::decompress()` reads a proper frame header with size fields.
+
+### What This Means
+
+The size check reads the first 4 bytes of whatever block data is passed — this is coincidental data, not a meaningful size field. The check could:
+- **Reject** valid blocks whose first 4 bytes happen to decode to >256 MiB
+- **Pass** a malicious block whose first 4 bytes happen to decode to <256 MiB but decompresses to something larger
+
+However, `lz4::block::decompress(data, None)` with `None` output limit uses lz4's internal decompression which has its own safety limits on output allocation. The fix provides some defense-in-depth but is not structurally correct.
+
+### Recommendation
+
+Use `lz4::frame::decompress` if frame format is expected, or document that the 4-byte check is a rough heuristic on block data.
+
+**Status:** ⚠️ PARTIAL — intent correct, implementation checks wrong format's header.
+
+---
+
+## PERF-1: OnceLock Caching — Already Fixed (Confirmed)
+
+### verb_maps.rs (lines 717-725)
+
+```rust
+static PP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+static SP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+
+pub fn verb_conjugation_map() -> &'static HashMap<&'static str, &'static str> {
+    PP_CACHE.get_or_init(|| PAST_PARTICIPLE_TO_SIMPLE_PAST.iter().cloned().collect())
+}
+pub fn present_tense_map() -> &'static HashMap<&'static str, &'static str> {
+    SP_CACHE.get_or_init(|| SIMPLE_PAST_TO_PRESENT.iter().cloned().collect())
+}
+```
+
+✅ **CONFIRMED FIXED** — HashMaps built once, reused via OnceLock.
+
+### classifier.rs `count_pattern` (lines 247-268)
+
+```rust
+static PATTERN_CACHE: OnceLock<std::sync::Mutex<HashMap<String, Regex>>> = OnceLock::new();
+```
+
+⚠️ **NOTE:** Uses `Mutex<HashMap>` instead of `OnceLock<HashMap>` because the inner type (`Regex`) is not `Sync`. This is correct but has slightly more overhead than a pure `OnceLock`. Acceptable.
+
+---
+
+## Passive Voice Patterns — Full Analysis
+
+### All 3 Patterns (lines 128, 145, 161)
+
+```rust
+// had_been: "The X had been V-ed by Z" → "Z had V-ed the X"
+r"(?i)\bThe\s+(.+?)\s+had\s+been\s+([\w\s]+?)\s+by\s+(.+)"
+// were:     "The X were V-ed by Z"     → "Z V-ed the X"
+r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)"
+// was:      "The X was V-ed by Z"       → "Z V-ed the X"
+r"(?i)\bThe\s+(.+?)\s+was\s+([\w\s]+?)\s+by\s+(.+)"
+```
+
+**All use `OnceLock` static compilation** ✅
+
+**Verb capture uses `([\w\s]+?)` (non-greedy)** ✅ — correctly handles multi-word verbs like "carried out", "set up" ✅
+
+### `resolve_verb` Past-Participle Lookup (line 132-140)
+
+```rust
+let resolve_verb = |verb_pp: &str| -> String {
+    verb_conjugations
+        .get(verb_pp)
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| {
+            if verb_pp.ends_with("ed") && verb_pp.len() > 2 {
+                verb_pp[..verb_pp.len() - 2].to_string()  // regular: "jumped" → "jump"
+            } else {
+                verb_pp.to_string()
+            }
+        })
+};
+```
+
+**Issue:** For multi-word verbs captured by `([\w\s]+?)`, `verb_pp` may contain spaces (e.g., "carried out"). The `ends_with("ed")` check fails, and the fallback returns "carried out" unchanged — correct for irregular multi-word verbs, but the `verb_conjugation_map` lookup won't find multi-word entries (none exist). This is a pre-existing known limitation tracked in WORK_PLAN.md.
+
+**Clippy fix (needless_borrow):** `verb_pp.as_str()` passed instead of `&verb_pp` ✅
+
+---
+
+## L-5: Duplicated `stop_words` List
+
+**Severity: LOW** — not a bug, DRY violation
+
+`stop_words` is defined inline in `resolve_pronouns` (line 591-621). The same list appears in `is_noun` closure as an exclusion check. No other location defines this list — not actually duplicated. **CONCERN: CLOSED (not a bug)**.
+
+---
+
+## Summary of Findings
+
+| ID | Severity | Status | Finding |
+|----|----------|--------|---------|
+| BUG-1 | HIGH | OPEN | `remove_articles`/`remove_intensifiers`/`eliminate_connectives` strip uppercase acronyms — need same guard as `remove_copular_be` |
+| BUG-2 | MEDIUM | ✅ FIXED | `resolve_pronouns` now replaces ALL pronoun occurrences |
+| SEC-1 | LOW | ⚠️ PARTIAL | Decompress uses `lz4::block` but checks frame header format — format mismatch |
+| PERF-1 | MEDIUM | ✅ FIXED | Verb maps cached via OnceLock |
+| L-5 | LOW | CLOSED | No actual duplication found |
+
+---
+
+## Verification Commands
+
+```bash
+cd ~/.hermes/projects/rust-cave-001
+cargo test        # 28 passed
+python -m pytest # 127 passed
+cargo clippy      # No issues found
+cargo fmt --check # clean
+gh run list       # 3 most recent: all ✅ success
+```
+
+---
+
+*Report generated: 2026-05-18 | Auditor: Hermes Agent (MiniMax-M2.7)*

@@ -1,46 +1,74 @@
 # CONTINUE HERE — rust-cave-001
 
-## v0.4.1 — SHIPPED + CI GREEN
+## v0.4.1 → v0.4.2 — AUDIT FIXES COMPLETE
 
 | Item | Value |
 |------|-------|
-| Commit | `dcfaca1` |
+| HEAD | `f0b9d5e` |
+| Prev | `be8f3d6` (CI green before fixes) |
 | Tag | [v0.4.1](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.1) |
-| PyPI | Wheel built: `dist/rust_cave_001-0.4.1-cp310-abi3-manylinux_2_34_aarch64.whl` — needs manual upload (no token on this machine) |
 | Rust Tests | 28 PASS ✅ |
 | Python Tests | 123 PASS ✅ |
 | Clippy | 0 warnings ✅ |
-| CI | GREEN (all jobs pass) ✅ |
+| cargo fmt | clean ✅ |
+| CI | GREEN ✅ (3 consecutive: 26049619756, 26050043345, 26050355755) |
 
-### What's New in v0.4.1
-- **Plural passive voice** — `"were V-ed by"` regex transforms to active
-- **Past-perfect passive voice** — `"had been V-ed by"` regex transforms to active
-- **Double-article fix** — all passive patterns no longer produce `"the The X"`
-- 4 Rust + 4 Python tests for the new patterns
+---
 
-### Bug Fixes Applied (May 18)
-- **BUG-1** (HIGH): Acronym stripping — `(?i)` prefix on content-removal regexes stripped uppercase acronyms (IS, AM, BE, AN, BUT, OR, AND). Status: Fixed in v0.4.1 via regex boundary adjustments. No regression on test suite.
-- **BUG-2** (MEDIUM): `resolve_pronouns` only replaced first occurrence. Status: Not yet fixed.
-- **BUG-3** (MEDIUM): Passive voice agent regex captured leading "The" as agent name. Status: Fixed in v0.4.1.
-- **PERF-1** (MEDIUM): `count_pattern` recompiled regex per call. Status: Fixed (static OnceLock cache).
-- **SEC-1** (LOW): No input size limits on `decompress()`. Status: Not yet fixed.
+## Audit Fixes Applied This Session
 
-### Local Fixes Applied (May 18)
-- `b310a62` style: rustfmt fixes for lib.rs and classifier.rs (indentation on static OnceLock patterns)
-- `dcfaca1` fix(clippy): needless_borrow on verb_pp in had_been passive transform
+### BUG-2 (MEDIUM) — resolve_pronouns replaced only first occurrence
+**File:** `src/lib.rs:653-670`
+**Symptom:** Sentence "It was great and it helped" → only first "it" replaced
+**Fix:** Changed from `break` after first match to collecting all `pronoun_indices` via `filter + map`, then replacing all via `pronoun_indices.contains(&j)`.
+**Commit:** `00f2202`
 
-### CI History (May 18)
-- `26045414023` FAIL: `cargo fmt --check` — pre-existing formatting issues on origin/master
-- `26049254018` FAIL: `cargo clippy` — needless_borrow lint caught after rustfmt re-indented the closure
-- `26049391338` SUCCESS: All jobs pass ✅ (latest commit dcfaca1)
+### SEC-1 (LOW) — decompress() had no input size limits
+**File:** `src/lib.rs:27-49`
+**Symptom:** Malicious LZ4 frame with huge declared decompressed size could allocate excessive memory.
+**Fix:** Added header validation:
+- Rejects inputs < 4 bytes (LZ4 frame minimum)
+- Reads uncompressed_size from first 4 bytes (little-endian u32)
+- Rejects sizes > 256 MiB (2^28) to prevent decompression bombs
+**Commit:** `00f2202`
 
-### Next Priorities
-1. **BUG-2 fix**: `resolve_pronouns` loop — replace all occurrences, not just first
-2. **SEC-1 fix**: Add input size limits on `decompress()`
-3. PyPI upload — needs token or GitHub Actions trusted publishing (OIDC)
-4. crates.io publish — needs `cargo login` token
-5. Self-learning framework — adaptive strategy tuning (benchmark ceiling 48.7%)
-6. Broader passive patterns: "is being V-ed", "has been V-ed", "will be V-ed"
+---
+
+## Audit Status (All Items)
+
+| ID | Severity | Status | Notes |
+|----|----------|--------|-------|
+| BUG-1 | HIGH | Open | `(?i)` on removal regexes — `remove_copular_be` has uppercase skip but other functions need review |
+| BUG-2 | MEDIUM | ✅ FIXED | resolve_pronouns now replaces ALL occurrences |
+| BUG-3 | MEDIUM | ✅ FIXED | Passive voice agent regex double-check for "The " prefix |
+| PERF-1 | MEDIUM | ✅ FIXED | count_pattern cached via OnceLock |
+| SEC-1 | LOW | ✅ FIXED | decompress() now validates size limits |
+
+---
+
+## CI History
+
+| Run | SHA | Result | Notes |
+|-----|-----|--------|-------|
+| 26050355755 | f0b9d5e | ✅ success | docs: log BUG-2 and SEC-1 fixes |
+| 26050043345 | 00f2202 | ✅ success | fix: BUG-2 replace all pronouns, SEC-1 decompress size limits |
+| 26049619756 | be8f3d6 | ✅ success | docs: update CONTINUE_HERE |
+| 26049391338 | dcfaca1 | ✅ success | fix(clippy): needless_borrow |
+| 26049254018 | b310a62 | ❌ failure | clippy: needless_borrow |
+| 26045414023 | 03cda81 | ❌ failure | cargo fmt --check |
+
+---
+
+## Remaining Open Items
+
+1. **BUG-1** (HIGH): `(?i)` on content-removal regexes strips acronyms — need to audit all pipeline functions
+2. **L-1**: 88 clippy pedantic warnings
+3. **L-2**: Docs mismatch "9 rules" vs 11
+4. **L-4**: Missing upstream SPEC connectives `then`, `thus`
+5. **L-5**: Duplicated stop_words list
+6. **L-6**: No ruff in CI
+7. **I-1/I-2**: Upstream SPEC Rules 5 and 9 gaps
+8. **crates.io publish**: needs `cargo login` token
 
 ### Key Files
 | File | Path |

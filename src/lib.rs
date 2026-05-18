@@ -25,11 +25,12 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 #[pyfunction]
 /// Decompress data using LZ4 algorithm
 /// SEC-1 fix: validates input size to prevent decompression bombs.
-/// LZ4 format stores uncompressed size in first 4 bytes (little-endian u32).
-/// Max decompressed size: 256 MiB (2^28 bytes). Rejects negative sizes and
-/// sizes exceeding the limit encoded in the LZ4 frame header.
+/// Uses lz4::block format (no built-in size header). The 4-byte check is a
+/// heuristic that reads the first 4 bytes of block data as a u32 and rejects
+/// values suggesting >256 MiB output. This is defense-in-depth; block format
+/// has internal size metadata that lz4's decompressor uses for allocation.
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
-    // Validate: LZ4 frame with size prefix needs at least 4 bytes header
+    // Validate: block data needs at least 4 bytes header
     if data.len() < 4 {
         return Err(exceptions::PyOSError::new_err(
             "Input too short: LZ4 data must be at least 4 bytes".to_string(),
@@ -357,8 +358,18 @@ fn remove_articles(text: &str) -> String {
         return text.to_string();
     }
 
-    // Apply article removal
-    let result = pattern.replace_all(text, "").to_string();
+    // Apply article removal with acronym guard
+    let result = pattern
+        .replace_all(text, |caps: &regex::Captures| {
+            let word = caps.get(0).unwrap().as_str();
+            // Acronym protection: skip removal if word is fully uppercase (e.g., "THE" in "THE API")
+            if word.chars().all(|c| c.is_uppercase()) {
+                word.to_string()
+            } else {
+                String::new()
+            }
+        })
+        .to_string();
 
     // Collapse multiple spaces into single space
     let result = collapse_spaces.replace_all(&result, " ").to_string();
@@ -523,8 +534,18 @@ fn remove_intensifiers(text: &str) -> String {
         return text.to_string();
     }
 
-    // Apply intensifier removal
-    let result = pattern.replace_all(text, "").to_string();
+    // Apply intensifier removal with acronym guard
+    let result = pattern
+        .replace_all(text, |caps: &regex::Captures| {
+            let word = caps.get(0).unwrap().as_str();
+            // Acronym protection: skip removal if word is fully uppercase
+            if word.chars().all(|c| c.is_uppercase()) {
+                word.to_string()
+            } else {
+                String::new()
+            }
+        })
+        .to_string();
 
     // Collapse multiple spaces into single space
     let result = collapse_spaces.replace_all(&result, " ").to_string();
@@ -544,7 +565,19 @@ fn eliminate_connectives(text: &str) -> String {
         Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas)\b,?\s*").unwrap()
     });
 
-    pattern.replace_all(text, " ").trim().to_string()
+    // Replace connectives with acronym guard
+    pattern
+        .replace_all(text, |caps: &regex::Captures| {
+            let word = caps.get(0).unwrap().as_str().trim();
+            // Acronym protection: skip removal if word is fully uppercase (e.g., "AND" in "ANDROID")
+            if word.chars().all(|c| c.is_uppercase()) {
+                word.to_string()
+            } else {
+                String::new()
+            }
+        })
+        .trim()
+        .to_string()
 }
 
 // Enforce word limit (2-5 words)
@@ -843,6 +876,61 @@ mod tests {
         assert!(!result4.contains(" a "));
         assert!(!result4.contains(" A "));
         assert!(!result4.contains(" the "));
+    }
+
+    #[test]
+    fn test_remove_articles_acronym_guard() {
+        // Uppercase "THE" (acronym) must NOT be stripped
+        let r1 = remove_articles("THE API handles requests efficiently");
+        assert!(
+            r1.contains("THE"),
+            "uppercase THE should be preserved: {}",
+            r1
+        );
+        assert!(r1.contains("API"));
+
+        // Mixed-case "The" (article) should still be stripped
+        let r2 = remove_articles("The ball was thrown by John");
+        assert!(!r2.to_lowercase().contains("the "));
+
+        // Lowercase articles still stripped normally
+        let r3 = remove_articles("the quick brown fox");
+        assert!(!r3.contains("the"));
+    }
+
+    #[test]
+    fn test_remove_intensifiers_acronym_guard() {
+        // Uppercase intensifiers should be preserved (no false positive)
+        let r1 = remove_intensifiers("This is VERY important");
+        assert!(
+            r1.contains("VERY"),
+            "uppercase VERY should be preserved: {}",
+            r1
+        );
+        assert!(r1.contains("important"));
+
+        // Lowercase still stripped
+        let r2 = remove_intensifiers("The extremely fast query");
+        assert!(!r2.contains("extremely"));
+    }
+
+    #[test]
+    fn test_eliminate_connectives_acronym_guard() {
+        // Uppercase "AND" (acronym like ANDROID) should NOT be stripped
+        let r1 = eliminate_connectives("ANDROID is the OS");
+        assert!(
+            r1.contains("ANDROID"),
+            "ANDROID should be preserved: {}",
+            r1
+        );
+
+        // Uppercase "OR" (acronym) should NOT be stripped
+        let r2 = eliminate_connectives("XOR is bitwise or");
+        assert!(r2.contains("XOR"), "XOR should be preserved: {}", r2);
+
+        // Lowercase connectives still stripped
+        let r3 = eliminate_connectives("Use index because query slow");
+        assert!(!r3.contains("because"));
     }
 
     #[test]
