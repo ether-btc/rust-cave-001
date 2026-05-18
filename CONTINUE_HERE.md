@@ -1,23 +1,29 @@
 # rust-cave-001 — Session Reference (May 18, 2026)
 
-## v0.4.0 — FULLY SHIPPED
+## v0.4.0 — BLOCKED — CI FAILING on Both Open PRs
 
-**Custom error types, abbreviation-aware sentence splitting, fully passing tests.**
-
-Stage 1: Build fix (libpython linking via PYO3_BUILD_EXTENSION_MODULE guard) + 23 Rust tests
-Stage 2: Error types + abbreviation-aware sentence splitting + build.rs fallback
-Stage 3: Error types wired into pipeline + changelog
-Stage 4: Maturin build fix + v0.4.0 release prep
+**Full audit completed 2026-05-18** — see `wiki/audits/rust-cave-001-audit-2026-05-18-full.md` for findings.
 
 ### Key References
 | What | Value |
 |------|-------|
 | Repo | `github.com/ether-btc/rust-cave-001` |
-| Latest commit | `df70f59` — build.rs hardcodes python3.13 for aarch64 linking fix |
+| Latest commit | `2e6d072` — .gitignore: add repomix_digest.md + .ocrrc.yml |
 | Tag | [v0.4.0](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.0) |
 | PyPI | `pip install rust-cave-001==0.4.0` |
-| Tests | 108 Python / 24 Rust — all pass, clippy clean (1 dead_code warning on unused error variants) |
+| Tests | 119 Python / 24 Rust — all pass ✅ |
+| Clippy | 0 warnings ✅ |
+| OCR Score | 81/100 PASSED ✅ |
 | Benchmark | 48.7% avg token reduction (v0.3.0 baseline) |
+
+### Open PRs (both CI FAILING)
+- **#5** `fix/build-rs-python-detection` — dynamic python3-config but `manual_strip` clippy error in build.rs line 36 (`&part[2..]`)
+- **#6** `perf/verb-map-oncelock-caching` — OnceLock caching for verb maps (PASSES tests, FAILS CI due to build.rs)
+
+### Root Cause: build.rs hardcodes python3.13
+`build.rs` was rewritten to hardcode `python3.13` linking for aarch64 runners, but x86_64 GitHub Actions uses `libpython3.10.so.1.0`. Both PRs fail with: `rust-lld: error: unable to find library -lpython3.13`
+
+**Fix needed:** Restore dynamic python3-config approach (commit `4621ab2`) with `strip_prefix("-L")` instead of `&part[2..]` to avoid clippy `manual_strip` lint.
 
 ### Pipeline (11 rules)
 1. Sentence splitting → 2. Pronoun resolution → 3. Contraction expansion →
@@ -25,18 +31,19 @@ Stage 4: Maturin build fix + v0.4.0 release prep
 7. Intensifier removal (min3) → 8. Be verb removal (min2, acronym-safe) →
 9. Connective removal → 10. Word limit (5) → 11. Completeness check
 
-### v0.4.0 additions
-- Custom `CompressionError` enum (TooShort, VoiceTransformFailed, EmptyInput, PipelineError)
-- Abbreviation-aware sentence splitting (27 common abbreviations protected)
-- 23 new Rust unit tests (total: 24 Rust / 108 Python)
-- Dynamic python version detection in build.rs
+### Audit Findings (2026-05-18)
+- **BLOCKER:** build.rs hardcodes python3.13 — breaks x86_64 CI
+- **HIGH:** `(?i)` flag on content-removal regexes can strip acronyms (IS, AM, BE, AN, BUT, OR, AND)
+- **MEDIUM:** `resolve_pronouns` only replaces first pronoun occurrence (not all)
+- **MEDIUM:** Passive voice agent regex can capture leading "The" as agent name
+- **MEDIUM:** `count_pattern` in classifier.rs recompiles regex per call
+- **LOW:** No input size limits on decompress()
+- Full report: `wiki/audits/rust-cave-001-audit-2026-05-18-full.md`
 
-### Build system fix
-- `build.rs` now hardcodes `python3.13` linking on aarch64 (container python3→3.11 but target is 3.13)
-- `PYO3_BUILD_EXTENSION_MODULE` guard prevents libpython linking during maturin wheel builds
-
-### Next for v0.4.1 (if continuing)
-- **"were" passive regex** — extend transform_active_voice to match plural subjects
-- **"had been" passive** — past-perfect passive pattern support
-- **Self-learning framework** — adaptive strategy tuning (benchmark ceiling at 48.7%)
-- **crates.io publish** — requires `cargo login` token
+### Next Steps (Priority Order)
+1. Fix build.rs — unblock both PRs
+2. Fix BUG-2: resolve_pronouns loop (replace all occurrences, not just first)
+3. Fix BUG-1: add `(?<![A-Z])...(?![A-Z])` uppercase boundary guards to removal regexes
+4. Cache classifier.rs density patterns in `static OnceLock<Regex>`
+5. File GitHub issue for v2 pronoun resolution tracking
+6. crates.io publish — requires `cargo login` token
