@@ -106,3 +106,25 @@
 - L-6: No ruff in CI (LOW HYGIENE)
 - SEC-1: No input size limits on `decompress()` — ✅ FIXED (v0.4.2)
 - I-1/I-2: Upstream SPEC Rules 5 and 9 gaps (INFO STRATEGIC)
+
+---
+
+## Phase 5: Implement BUG-1 (Acronym stripping guard)
+
+**File:** `src/lib.rs` — `remove_articles` (line 345), `remove_intensifiers` (line 510), `eliminate_connectives` (line 544)
+**Status:** ✅ COMPLETE (v0.4.2, commit f755727)
+
+**Issue:** Three functions used `(?i)` case-insensitive regex but lacked the uppercase guard that `remove_copular_be` already had. Uppercase acronyms like "THE" (in "THE API"), "ANDROID", "XOR" could be incorrectly stripped.
+
+**Changes:**
+- `remove_articles`: Changed `replace_all(text, "")` to `replace_all(text, |caps| { ... guard ... })` matching `remove_copular_be` pattern
+- `remove_intensifiers`: Same guard pattern applied
+- `eliminate_connectives`: Same guard pattern applied (handles "AND", "OR" acronyms)
+- Added 3 regression tests: `test_remove_articles_acronym_guard`, `test_remove_intensifiers_acronym_guard`, `test_eliminate_connectives_acronym_guard`
+
+**Verification:**
+- `cargo clippy -- -D warnings`: PASS
+- `cargo test`: 31 passed (up from 28)
+- `pytest`: 127 passed
+
+**Impact:** Corrects HIGH severity bug — acronym-containing technical text now preserved correctly
