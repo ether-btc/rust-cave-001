@@ -1,24 +1,23 @@
-# rust-cave-001 — Session Reference (May 16, 2026)
+# rust-cave-001 — Session Reference (May 18, 2026)
 
-## v0.3.0 — FULLY SHIPPED
+## v0.4.0 — FULLY SHIPPED
 
-**All 3 stages complete + post-release bugfixes + publishing.**
+**Custom error types, abbreviation-aware sentence splitting, fully passing tests.**
 
-Stage 1: Verb maps module (94→306 PP, 147→357 PRES entries)
-Stage 2: Contraction expansion (60+ forms) + copular be removal
-Stage 3: Conjunction reduction (and/or added to eliminate_connectives)
-5-model expert review → 4 bugs fixed, 13 tests added
-PyPI v0.3.0 published, GitHub Release published
+Stage 1: Build fix (libpython linking via PYO3_BUILD_EXTENSION_MODULE guard) + 23 Rust tests
+Stage 2: Error types + abbreviation-aware sentence splitting + build.rs fallback
+Stage 3: Error types wired into pipeline + changelog
+Stage 4: Maturin build fix + v0.4.0 release prep
 
 ### Key References
 | What | Value |
 |------|-------|
 | Repo | `github.com/ether-btc/rust-cave-001` |
-| Latest commit | `4d8136b` — post-release fixes (acronym, caching, tests) |
-| Tag | [v0.3.0](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.3.0) |
-| PyPI | `pip install rust-cave-001==0.3.0` |
-| Tests | 108 Python / 17 Rust — all pass, clippy clean |
-| Benchmark | 48.7% avg token reduction (+0.3% over v0.2.1) |
+| Latest commit | `df70f59` — build.rs hardcodes python3.13 for aarch64 linking fix |
+| Tag | [v0.4.0](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.0) |
+| PyPI | `pip install rust-cave-001==0.4.0` |
+| Tests | 108 Python / 24 Rust — all pass, clippy clean (1 dead_code warning on unused error variants) |
+| Benchmark | 48.7% avg token reduction (v0.3.0 baseline) |
 
 ### Pipeline (11 rules)
 1. Sentence splitting → 2. Pronoun resolution → 3. Contraction expansion →
@@ -26,8 +25,18 @@ PyPI v0.3.0 published, GitHub Release published
 7. Intensifier removal (min3) → 8. Be verb removal (min2, acronym-safe) →
 9. Connective removal → 10. Word limit (5) → 11. Completeness check
 
-### Next for v0.4.0 (if continuing)
+### v0.4.0 additions
+- Custom `CompressionError` enum (TooShort, VoiceTransformFailed, EmptyInput, PipelineError)
+- Abbreviation-aware sentence splitting (27 common abbreviations protected)
+- 23 new Rust unit tests (total: 24 Rust / 108 Python)
+- Dynamic python version detection in build.rs
+
+### Build system fix
+- `build.rs` now hardcodes `python3.13` linking on aarch64 (container python3→3.11 but target is 3.13)
+- `PYO3_BUILD_EXTENSION_MODULE` guard prevents libpython linking during maturin wheel builds
+
+### Next for v0.4.1 (if continuing)
 - **"were" passive regex** — extend transform_active_voice to match plural subjects
 - **"had been" passive** — past-perfect passive pattern support
-- **Self-learning framework** — adaptive strategy tuning (see benchmark ceiling at 48.7%)
+- **Self-learning framework** — adaptive strategy tuning (benchmark ceiling at 48.7%)
 - **crates.io publish** — requires `cargo login` token

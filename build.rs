@@ -10,21 +10,8 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
 
-    let python_ver = std::process::Command::new("python3")
-        .arg("-c")
-        .arg("import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
-        .output();
-
-    match python_ver {
-        Ok(output) if output.status.success() => {
-            let ver = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            if !ver.is_empty() {
-                println!("cargo:rustc-link-lib=python{}", ver);
-                println!("cargo:rustc-link-search=/usr/lib/aarch64-linux-gnu");
-            }
-        }
-        _ => {
-            eprintln!("cargo:warning=python3 not found — cargo test linking may fail");
-        }
-    }
+    // Fixed: hardcode 3.13 for aarch64/pip-installed build.
+    // Container env may have python3->3.11 but we target 3.13.
+    println!("cargo:rustc-link-lib=python3.13");
+    println!("cargo:rustc-link-search=/usr/lib/aarch64-linux-gnu");
 }
