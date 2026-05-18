@@ -10,8 +10,32 @@ fn main() {
 
     println!("cargo:rerun-if-changed=build.rs");
 
-    // Fixed: hardcode 3.13 for aarch64/pip-installed build.
-    // Container env may have python3->3.11 but we target 3.13.
-    println!("cargo:rustc-link-lib=python3.13");
-    println!("cargo:rustc-link-search=/usr/lib/aarch64-linux-gnu");
+    // Detect Python link flags dynamically so we work on any platform/arch.
+    // python3-config --ldflags gives us -L flags for the Python library paths.
+    let python_config = std::process::Command::new("python3-config")
+        .arg("--ldflags")
+        .output();
+
+    let ver = std::process::Command::new("python3")
+        .arg("-c")
+        .arg("import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+        .output()
+        .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+        .unwrap_or_default();
+
+    if !ver.is_empty() {
+        println!("cargo:rustc-link-lib=python{}", ver);
+    }
+
+    if let Ok(output) = python_config {
+        if output.status.success() {
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            // Parse -L flags from python3-config --ldflags
+            for part in output_str.split_whitespace() {
+                if let Some(path) = part.strip_prefix("-L") {
+                    println!("cargo:rustc-link-search=native={}", path);
+                }
+            }
+        }
+    }
 }
