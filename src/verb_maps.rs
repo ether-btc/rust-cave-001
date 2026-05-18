@@ -11,6 +11,13 @@
 //! in the calling functions.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
+
+/// Cached past-participle → simple-past map (avoids rebuilding 192-entry HashMap per sentence).
+static PP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
+
+/// Cached simple-past → present-base map (avoids rebuilding 220-entry HashMap per sentence).
+static SP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
 /// Map of past participles to simple past forms for passive-to-active transformation.
 ///
@@ -706,14 +713,14 @@ pub static SIMPLE_PAST_TO_PRESENT: &[(&str, &str)] = &[
     ("worried", "worry"),
 ];
 
-/// Build a HashMap from the static slice for transform_active_voice.
-pub fn build_verb_conjugation_map() -> HashMap<&'static str, &'static str> {
-    PAST_PARTICIPLE_TO_SIMPLE_PAST.iter().cloned().collect()
+/// Returns a cached reference to the past-participle → simple-past map.
+pub fn verb_conjugation_map() -> &'static HashMap<&'static str, &'static str> {
+    PP_CACHE.get_or_init(|| PAST_PARTICIPLE_TO_SIMPLE_PAST.iter().cloned().collect())
 }
 
-/// Build a HashMap from the static slice for normalize_present_tense.
-pub fn build_present_tense_map() -> HashMap<&'static str, &'static str> {
-    SIMPLE_PAST_TO_PRESENT.iter().cloned().collect()
+/// Returns a cached reference to the simple-past → present-base map.
+pub fn present_tense_map() -> &'static HashMap<&'static str, &'static str> {
+    SP_CACHE.get_or_init(|| SIMPLE_PAST_TO_PRESENT.iter().cloned().collect())
 }
 
 #[cfg(test)]
@@ -722,7 +729,7 @@ mod tests {
 
     #[test]
     fn test_verb_map_no_duplicate_keys() {
-        let map = build_verb_conjugation_map();
+        let map = verb_conjugation_map();
         assert_eq!(
             map.len(),
             PAST_PARTICIPLE_TO_SIMPLE_PAST.len(),
@@ -732,7 +739,7 @@ mod tests {
 
     #[test]
     fn test_present_map_no_duplicate_keys() {
-        let map = build_present_tense_map();
+        let map = present_tense_map();
         assert_eq!(
             map.len(),
             SIMPLE_PAST_TO_PRESENT.len(),
@@ -761,8 +768,8 @@ mod tests {
     #[test]
     fn test_verb_map_symmetry() {
         // Verify key verbs appear in BOTH maps (transform-active -> normalize consistency)
-        let past_pp = build_verb_conjugation_map();
-        let past_pres = build_present_tense_map();
+        let past_pp = verb_conjugation_map();
+        let past_pres = present_tense_map();
 
         // For a core set, pp -> sp -> present should round-trip
         // e.g., "thrown" -> "threw" in pp_map, "threw" -> "throw" in present_map
