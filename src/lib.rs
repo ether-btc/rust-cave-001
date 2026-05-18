@@ -79,7 +79,8 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
 
     // Map of past participles to simple past forms (irregular verbs)
     // Uses the expanded verb_maps module (192 entries, v0.3.0)
-    let verb_conjugations = verb_maps::build_verb_conjugation_map();
+    // Cached via OnceLock — built once, reused for all sentences.
+    let verb_conjugations = verb_maps::verb_conjugation_map();
 
     // Regex to match passive voice: "The X was V-ed by Z" → "Z V-ed the X"
     // Pattern breakdown: "The " + (subject: one or more words) + " was " + (verb-pp) + " by " + (agent: one or more words)
@@ -119,7 +120,8 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
 
     // Map of simple past → present base form (reverse of the conjugation map)
     // Uses the expanded verb_maps module (220 entries, v0.3.0)
-    let present_tense_map = verb_maps::build_present_tense_map();
+    // Cached via OnceLock — built once, reused for all sentences.
+    let present_tense_map = verb_maps::present_tense_map();
 
     static WORD_PATTERN: OnceLock<Regex> = OnceLock::new();
     let word_pattern = WORD_PATTERN.get_or_init(|| Regex::new(r"\b(\w+)\b").unwrap());

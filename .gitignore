@@ -53,3 +53,5 @@ PUBLIC_READINESS_PLAN.md
 
 # Local Cargo build config (target-dir on USB)
 .cargo/
+repomix_digest.md
+.ocrrc.yml
