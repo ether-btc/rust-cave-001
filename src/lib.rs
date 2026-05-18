@@ -11,6 +11,7 @@ mod verb_maps;
 mod error;
 
 use std::collections::HashSet;
+use std::sync::OnceLock;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm
@@ -31,9 +32,13 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
 
 #[pyfunction]
 /// Estimate token count using regex pattern
+/// Cached via OnceLock to avoid per-call regex compilation.
 pub fn estimate_tokens(text: &str) -> PyResult<usize> {
-    let re =
-        Regex::new(r"\b\w+\b").map_err(|e| exceptions::PyValueError::new_err(e.to_string()))?;
+    static TOKEN_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let re = TOKEN_PATTERN
+        .get_or_init(|| {
+            Regex::new(r"\b\w+\b").expect("token regex should compile")
+        });
     let count = re.find_iter(text).count();
     Ok(count)
 }

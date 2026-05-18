@@ -7,6 +7,8 @@
 /// The strategy selector (which maps type → rule subset) comes next,
 /// informed by benchmark oracle data.
 use regex::Regex;
+use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Categories of text input that the compression pipeline may encounter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -236,12 +238,33 @@ fn average_word_length(text: &str) -> f64 {
 }
 
 fn count_sentences(text: &str) -> f64 {
-    let re = Regex::new(r"[.!?](\s|$)").unwrap();
+    static SENTENCE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    let re = SENTENCE_PATTERN
+        .get_or_init(|| Regex::new(r"[.!?](\s|$)").expect("sentence regex should compile"));
     re.find_iter(text).count().max(1) as f64
 }
 
 fn count_pattern(text: &str, pattern: &str) -> usize {
-    Regex::new(pattern).map_or(0, |re| re.find_iter(text).count())
+    static PATTERN_CACHE: OnceLock<std::sync::Mutex<HashMap<String, Regex>>> = OnceLock::new();
+    let cache = PATTERN_CACHE.get_or_init(|| std::sync::Mutex::new(HashMap::new()));
+
+    // Try to get from cache first
+    {
+        let cache_ref = cache.lock().unwrap();
+        if let Some(re) = cache_ref.get(pattern) {
+            return re.find_iter(text).count();
+        }
+    }
+
+    // Compile and cache
+    match Regex::new(pattern) {
+        Ok(re) => {
+            let count = re.find_iter(text).count();
+            cache.lock().unwrap().insert(pattern.to_string(), re);
+            count
+        },
+        Err(_) => 0
+    }
 }
 
 use pyo3::prelude::*;
