@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Passive voice double-article bug** — the regex captured "The" in the subject group, producing "John threw the The ball". Fixed by matching but not capturing the leading "The".
+- **BUG-2: pronoun resolution** — `resolve_pronouns` only replaced the first occurrence; now replaces ALL pronoun occurrences in a sentence. Changed from break-after-first to collecting all indices via filter+map.
+- **SEC-1: decompress size limits** — `decompress()` now validates the LZ4 frame header size prefix before decompression. Rejects inputs <4 bytes and decompressed sizes >256 MiB to prevent decompression bombs.
 
 ## [0.4.0] - 2026-05-18
 

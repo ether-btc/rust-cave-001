@@ -100,8 +100,9 @@
 
 - L-1: 88 clippy pedantic warnings (LOW STYLE)
 - L-2: Docs mismatch "9 rules" vs 11 (LOW DOC)
-- L-3: `resolve_pronouns` single-replacement only (LOW FEATURE)
+- L-3: `resolve_pronouns` single-replacement only — ✅ FIXED (v0.4.2)
 - L-4: Missing upstream SPEC connectives `then`, `thus` (LOW SPEC)
 - L-5: Duplicated stop_words list (LOW DRY)
 - L-6: No ruff in CI (LOW HYGIENE)
+- SEC-1: No input size limits on `decompress()` — ✅ FIXED (v0.4.2)
 - I-1/I-2: Upstream SPEC Rules 5 and 9 gaps (INFO STRATEGIC)
