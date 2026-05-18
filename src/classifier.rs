@@ -262,8 +262,8 @@ fn count_pattern(text: &str, pattern: &str) -> usize {
             let count = re.find_iter(text).count();
             cache.lock().unwrap().insert(pattern.to_string(), re);
             count
-        },
-        Err(_) => 0
+        }
+        Err(_) => 0,
     }
 }
 
