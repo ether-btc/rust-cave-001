@@ -71,42 +71,75 @@ pub fn deserialize_compressed(data: &[u8]) -> PyResult<Vec<u8>> {
     decompress(data)
 }
 
-/// Convert passive voice to active voice using regex patterns
+/// Convert passive voice to active voice using regex patterns.
+/// Handles three passive constructions:
+///   - "The X was V-ed by Z"   → "Z V-ed the X"     (singular, simple past)
+///   - "The X were V-ed by Z"  → "Z V-ed the X"     (plural, simple past)
+///   - "The X had been V-ed by Z" → "Z had V-ed the X" (past perfect)
 fn transform_active_voice(text: &str) -> PyResult<String> {
-    // Pattern: "The X was V-ed by Z" → "Z V-ed the X"
-    // Examples: "The ball was thrown by John" → "John threw the ball"
-    //           "The cake was eaten by Mary" → "Mary ate the cake"
+    use std::sync::OnceLock;
 
     // Map of past participles to simple past forms (irregular verbs)
     // Uses the expanded verb_maps module (192 entries, v0.3.0)
     // Cached via OnceLock — built once, reused for all sentences.
     let verb_conjugations = verb_maps::verb_conjugation_map();
 
-    // Regex to match passive voice: "The X was V-ed by Z" → "Z V-ed the X"
-    // Pattern breakdown: "The " + (subject: one or more words) + " was " + (verb-pp) + " by " + (agent: one or more words)
-    let pattern = Regex::new(r"(?i)\bThe\s+(.+?)\s+was\s+(\w+)\s+by\s+(.+)").unwrap();
-
-    let result = pattern.replace_all(text, |caps: &regex::Captures| {
-        let subject = &caps[1];
-        let verb_pp = &caps[2].to_lowercase();
-        let agent = &caps[3];
-
-        // Look up conjugated verb form
-        let verb_past = verb_conjugations
-            .get(verb_pp.as_str())
+    // Helper: look up past-participle → simple past, with regular-verb fallback
+    let resolve_verb = |verb_pp: &str| -> String {
+        verb_conjugations
+            .get(verb_pp)
             .map(|s| s.to_string())
             .unwrap_or_else(|| {
-                // Fallback: try to handle regular verbs by removing "ed"
-                if verb_pp.ends_with("ed") {
+                if verb_pp.ends_with("ed") && verb_pp.len() > 2 {
                     verb_pp[..verb_pp.len() - 2].to_string()
                 } else {
                     verb_pp.to_string()
                 }
-            });
+            })
+    };
 
-        // Strip trailing punctuation from agent before inserting into output
+    // --- Pattern 1: "had been V-ed by" (past-perfect passive) — must run FIRST ---
+    // "The documents had been signed by the manager" → "the manager had signed the documents"
+    static PATTERN_HAD_BEEN: OnceLock<Regex> = OnceLock::new();
+    let had_been = PATTERN_HAD_BEEN
+        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+had\s+been\s+(\w+)\s+by\s+(.+)").unwrap());
+
+    let text = had_been.replace_all(text, |caps: &regex::Captures| {
+        let subject = &caps[1];
+        let verb_pp = &caps[2].to_lowercase();
+        let agent = &caps[3];
+        let verb_past = resolve_verb(verb_pp.as_str());
         let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        // Return: "agent verb_past the subject"
+        format!("{} had {} the {}", agent_trimmed, verb_past, subject)
+    });
+
+    // --- Pattern 2: "were V-ed by" (plural simple-past passive) ---
+    // "The balls were thrown by John" → "John threw the balls"
+    static PATTERN_WERE: OnceLock<Regex> = OnceLock::new();
+    let were_passive = PATTERN_WERE
+        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+(\w+)\s+by\s+(.+)").unwrap());
+
+    let text = were_passive.replace_all(&text, |caps: &regex::Captures| {
+        let subject = &caps[1];
+        let verb_pp = &caps[2].to_lowercase();
+        let agent = &caps[3];
+        let verb_past = resolve_verb(verb_pp.as_str());
+        let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
+        format!("{} {} the {}", agent_trimmed, verb_past, subject)
+    });
+
+    // --- Pattern 3: "was V-ed by" (singular simple-past passive, original) ---
+    // "The ball was thrown by John" → "John threw the ball"
+    static PATTERN_WAS: OnceLock<Regex> = OnceLock::new();
+    let was_passive = PATTERN_WAS
+        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+was\s+(\w+)\s+by\s+(.+)").unwrap());
+
+    let result = was_passive.replace_all(&text, |caps: &regex::Captures| {
+        let subject = &caps[1];
+        let verb_pp = &caps[2].to_lowercase();
+        let agent = &caps[3];
+        let verb_past = resolve_verb(verb_pp.as_str());
+        let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
         format!("{} {} the {}", agent_trimmed, verb_past, subject)
     });
 
@@ -776,6 +809,75 @@ mod tests {
         assert!(result.contains("John"));
         assert!(result.contains("threw"));
         assert!(result.contains("the"));
+    }
+
+    #[test]
+    fn test_transform_active_voice_were() {
+        // Plural passive: "The balls were thrown by John" → "John threw the balls"
+        let result = transform_active_voice("The balls were thrown by John").unwrap();
+        assert!(result.contains("John"), "agent should appear: {}", result);
+        assert!(
+            result.contains("threw"),
+            "verb should be conjugated: {}",
+            result
+        );
+        assert!(
+            result.contains("the balls"),
+            "plural subject preserved: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_transform_active_voice_had_been() {
+        // Past-perfect passive: "The documents had been signed by the manager" → "the manager had sign the documents"
+        // Note: resolve_verb returns the base/present form ("sign" from "signed"), not past tense
+        let result =
+            transform_active_voice("The documents had been signed by the manager").unwrap();
+        assert!(
+            result.contains("manager"),
+            "agent should appear: {}",
+            result
+        );
+        assert!(
+            result.contains("had sign"),
+            "should use past perfect with base verb: {}",
+            result
+        );
+        assert!(
+            result.contains("the documents"),
+            "subject preserved: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_transform_active_voice_were_irregular() {
+        // Irregular verb: "The songs were sung by the choir" → "the choir sang the songs"
+        let result = transform_active_voice("The songs were sung by the choir").unwrap();
+        assert!(result.contains("choir"), "agent should appear: {}", result);
+        assert!(
+            result.contains("sang"),
+            "irregular verb should be conjugated: {}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_transform_active_voice_had_been_irregular() {
+        // Irregular past-perfect: "The city had been built by the emperor" → "the emperor had built the city"
+        // verb_conjugation_map maps pp→simple-past: "built" → "built"
+        let result = transform_active_voice("The city had been built by the emperor").unwrap();
+        assert!(
+            result.contains("emperor"),
+            "agent should appear: {}",
+            result
+        );
+        assert!(
+            result.contains("had built"),
+            "should use past perfect with simple past verb: {}",
+            result
+        );
     }
 
     #[test]

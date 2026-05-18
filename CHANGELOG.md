@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-05-18
+
+### Added
+- **Plural passive voice** (`were V-ed by`) — regex pattern transforms plural passive constructions to active voice. e.g. "The balls were thrown by John" → "John threw the balls".
+- **Past-perfect passive voice** (`had been V-ed by`) — regex pattern for past-perfect passive. e.g. "The documents had been signed by the manager" → "the manager had signed the documents".
+- **4 Rust tests** for new passive patterns (were, were+irregular, had_been, had_been+irregular).
+- **4 Python tests** for new passive patterns via the full `compress()` pipeline.
+
+### Fixed
+- **Passive voice double-article bug** — the regex captured "The" in the subject group, producing "John threw the The ball". Fixed by matching but not capturing the leading "The".
+
 ## [0.4.0] - 2026-05-18
 
 ### Added

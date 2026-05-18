@@ -830,6 +830,34 @@ class TestPassiveVoiceEdgeCases:
         result = compress("The basket was woven by the artisan")
         assert "artisan" in result.lower(), f"artisan should be agent: {result}"
 
+    def test_passive_were_plural(self):
+        """Plural passive: 'were V-ed by' pattern (v0.4.1)."""
+        from rust_cave_001 import compress
+        result = compress("The balls were thrown by John")
+        assert "john" in result.lower(), f"agent should appear: {result}"
+        assert "ball" in result.lower(), f"subject should appear: {result}"
+
+    def test_passive_were_irregular(self):
+        """Plural passive with irregular verb: 'were sung by' (v0.4.1)."""
+        from rust_cave_001 import compress
+        result = compress("The songs were sung by the choir")
+        assert "choir" in result.lower(), f"choir should be agent: {result}"
+        assert "song" in result.lower(), f"songs should be subject: {result}"
+
+    def test_passive_had_been(self):
+        """Past-perfect passive: 'had been V-ed by' pattern (v0.4.1)."""
+        from rust_cave_001 import compress
+        result = compress("The documents had been signed by the manager")
+        assert "manager" in result.lower(), f"manager should be agent: {result}"
+        assert "document" in result.lower(), f"documents should be subject: {result}"
+
+    def test_passive_had_been_irregular(self):
+        """Past-perfect passive with irregular verb (v0.4.1)."""
+        from rust_cave_001 import compress
+        result = compress("The city had been built by the emperor")
+        assert "emperor" in result.lower(), f"emperor should be agent: {result}"
+        assert "city" in result.lower(), f"city should be subject: {result}"
+
 
 class TestConnectives:
     """Test eliminate_connectives with all supported connectives."""
