@@ -113,7 +113,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         let subject = &caps[1];
         let verb_pp = &caps[2].to_lowercase().trim().to_string();
         let agent = &caps[3];
-        let verb_past = resolve_verb(&verb_pp);
+        let verb_past = resolve_verb(verb_pp.as_str());
         let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
         format!("{} had {} the {}", agent_trimmed, verb_past, subject)
     });
