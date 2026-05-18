@@ -24,7 +24,7 @@ fn main() {
         .unwrap_or_default();
 
     if !ver.is_empty() {
-        println!("cargo:rustc-link-lib=python{}", ver);
+        println!("cargo:rustc-link-lib=python{ver}");
     }
 
     if let Ok(output) = python_config {
@@ -33,7 +33,7 @@ fn main() {
             // Parse -L flags from python3-config --ldflags
             for part in output_str.split_whitespace() {
                 if let Some(path) = part.strip_prefix("-L") {
-                    println!("cargo:rustc-link-search=native={}", path);
+                    println!("cargo:rustc-link-search=native={path}");
                 }
             }
         }

@@ -602,7 +602,7 @@ class TestAdaptiveCompression:
         text = "The database needs an index because the queries are too slow."
         adaptive = compress_adaptive(text)
         full = compress(text)
-        assert adaptive == full, f"Technical should match full pipeline"
+        assert adaptive == full, "Technical should match full pipeline"
 
     def test_adaptive_conversational_preserves_pronouns(self):
         from rust_cave_001 import compress_adaptive
