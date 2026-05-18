@@ -51,6 +51,10 @@ pytest tests/ -v
 
 Be respectful and constructive. We welcome contributors of all skill levels.
 
+## Uninstallation
+
+See [UNINSTALL.md](UNINSTALL.md) for complete removal instructions.
+
 ## Questions?
 
 Open a GitHub Discussion or Issue. We are happy to help.
