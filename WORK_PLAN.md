@@ -70,9 +70,34 @@
 
 ---
 
+## Phase 4: Implement M-2 (Passive voice multi-word verbs)
+
+**File:** `src/lib.rs:106-144`
+**Status:** ✅ COMPLETE
+
+**Issue:** Passive voice regex patterns only matched single-word verbs (`\w+`), missing common phrasal passives like "was carried out by" or "was set up by".
+
+**Root Cause:** All three passive patterns used `(\w+)` for verb capture, which only matches a single word.
+
+**Changes:**
+- Extended all three passive patterns (was, were, had been) to use `([\w\s]+?)` instead of `\w+`
+- Added `.trim().to_string()` in had_been pattern to normalize verb_pp with whitespace
+- This allows capture of 2-3 word verb phrases (e.g., "carried out", "set up", "looked over")
+
+**Verification:**
+- Added 3 new test cases: `test_passive_multi_word_verb_carried_out`, `test_passive_multi_word_verb_set_up`, `test_passive_multi_word_verb_looked_over`
+- `cargo check`: PASS
+- All tests: 127 passed (up from 124)
+- Multi-word verbs now correctly captured: "was carried out by" → verb phrase preserved
+
+**Impact:** Corrects MEDIUM severity feature gap — common phrasal passive constructions now transformed
+
+**Note:** "had been" multi-word verbs affected by separate pre-existing bug where `normalize_present_tense` converts "had" → "have" when "had" is used as auxiliary verb. Tracked separately.
+
+---
+
 ## Pending (Next Phases)
 
-- M-2: Passive voice regex multi-word verbs (MEDIUM FEATURE)
 - L-1: 88 clippy pedantic warnings (LOW STYLE)
 - L-2: Docs mismatch "9 rules" vs 11 (LOW DOC)
 - L-3: `resolve_pronouns` single-replacement only (LOW FEATURE)
