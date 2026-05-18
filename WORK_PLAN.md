@@ -43,9 +43,35 @@
 
 ---
 
+## Phase 3: Implement M-1 (normalize_present_tense doubled consonants)
+
+**File:** `src/lib.rs:219-234`
+**Status:** ✅ COMPLETE
+
+**Issue:** The `normalize_present_tense` function incorrectly handled verbs with doubled consonants before "ed" (e.g., "stopped" → "stopp", "slipped" → "slipp", "grabbed" → "grabb").
+
+**Root Cause:** The default "ed" stripping logic removed the "ed" suffix but did not check for doubled consonants in the stem.
+
+**Changes:**
+- Added doubled consonant detection logic in the default "ed" → "" stripping path
+- Checks if last two characters of stem are the same consonant
+- If true, removes one consonant before returning (e.g., "stopp" → "stop", "slipp" → "slip")
+- Pattern: [consonant][same-consonant]ed → remove one consonant
+- Examples: stopped→stop, slipped→slip, grabbed→grab, planned→plan, mapped→map
+
+**Verification:**
+- Added comprehensive test case `test_doubled_consonants` to `tests/test_rust_cave_001.py`
+- Tests 12 doubled-consonant verbs + 4 regular verbs for regression
+- `maturin build --release`: PASS (12.36s)
+- `pip install --force-reinstall`: PASS
+- All tests: 124 passed in 0.14s (up from 123)
+
+**Impact:** Corrects MEDIUM severity bug affecting present-tense conversion of regular verbs with doubled consonants
+
+---
+
 ## Pending (Next Phases)
 
-- M-1: `normalize_present_tense` doubled consonants (MEDIUM CORRECTNESS)
 - M-2: Passive voice regex multi-word verbs (MEDIUM FEATURE)
 - L-1: 88 clippy pedantic warnings (LOW STYLE)
 - L-2: Docs mismatch "9 rules" vs 11 (LOW DOC)

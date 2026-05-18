@@ -215,8 +215,23 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
                             return e_stem.to_string();
                         }
                     }
+
                     // Default: simple "ed" → "" stripping
-                    // (e.g., "stopped" → "stopp", "worked" → "work")
+                    // Handle doubled consonants: "stopped" → "stop", "slipped" → "slip"
+                    // Not doubled: "worked" → "work" (no change needed)
+                    // Check for doubled consonant before "ed": stopped, slipped, grabbed
+                    // Pattern: [consonant][same-consonant]ed → remove one consonant
+                    if stem.len() >= 2 {
+                        let last = stem.chars().last().unwrap();
+                        let second_last = stem.chars().nth_back(1).unwrap();
+                        // If last two chars are same consonant, remove one
+                        if last == second_last
+                            && last.is_ascii_lowercase()
+                            && !matches!(last, 'a' | 'e' | 'i' | 'o' | 'u')
+                        {
+                            return stem[..stem.len() - 1].to_string();
+                        }
+                    }
                     return stem.to_string();
                 }
             }

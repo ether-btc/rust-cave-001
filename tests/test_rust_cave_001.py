@@ -330,6 +330,39 @@ class TestPresentTenseNormalization:
         result = npt("frobnicate")
         assert result == "frobnicate"
 
+    def test_doubled_consonants(self):
+        """Test M-1 fix: doubled consonants before 'ed' are deduplicated."""
+        from rust_cave_001 import normalize_present_tense as npt
+        # Test cases from M-1 bug report and common patterns
+        cases = [
+            ("stopped", "stop"),      # p-p
+            ("slipped", "slip"),      # p-p
+            ("grabbed", "grab"),      # b-b
+            ("planned", "plan"),      # n-n
+            ("mapped", "map"),        # p-p
+            ("stamped", "stamp"),     # p-p
+            ("picked", "pick"),       # c-c
+            ("dropped", "drop"),     # p-p
+            ("begged", "beg"),       # g-g
+            ("nodded", "nod"),       # d-d
+            ("ripped", "rip"),       # p-p
+            ("tagged", "tag"),       # g-g
+        ]
+        for past, present in cases:
+            result = npt(past)
+            assert result.lower() == present, f"npt('{past}') = '{result}' (expected '{present}')"
+
+        # Ensure non-doubled cases still work
+        regular_cases = [
+            ("worked", "work"),
+            ("played", "play"),
+            ("called", "call"),
+            ("looked", "look"),
+        ]
+        for past, present in regular_cases:
+            result = npt(past)
+            assert result.lower() == present, f"npt('{past}') = '{result}' (expected '{present}')"
+
 
 # =============================================================================
 # Compress Function — Full Caveman Rules Pipeline
