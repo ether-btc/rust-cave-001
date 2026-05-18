@@ -891,6 +891,33 @@ class TestPassiveVoiceEdgeCases:
         assert "emperor" in result.lower(), f"emperor should be agent: {result}"
         assert "city" in result.lower(), f"city should be subject: {result}"
 
+    def test_passive_multi_word_verb_carried_out(self):
+        """M-2 fix: Multi-word verb phrase 'carried out' captured by passive regex."""
+        from rust_cave_001 import compress
+        result = compress("The project was carried out by the team")
+        assert "team" in result.lower(), f"team should be agent: {result}"
+        assert "project" in result.lower(), f"project should be subject: {result}"
+        # Verb phrase should be preserved
+        assert "carry" in result.lower() and "out" in result.lower()
+
+    def test_passive_multi_word_verb_set_up(self):
+        """M-2 fix: Multi-word verb phrase 'set up' captured by passive regex."""
+        from rust_cave_001 import compress
+        result = compress("The experiment was set up by researchers")
+        assert "researchers" in result.lower(), f"researchers should be agent: {result}"
+        assert "experiment" in result.lower(), f"experiment should be subject: {result}"
+        # Verb phrase should be preserved
+        assert "set" in result.lower() and "up" in result.lower()
+
+    def test_passive_multi_word_verb_looked_over(self):
+        """M-2 fix: Multi-word verb phrase 'looked over' captured by passive regex."""
+        from rust_cave_001 import compress
+        result = compress("The data was looked over by analysts")
+        assert "analysts" in result.lower(), f"analysts should be agent: {result}"
+        assert "data" in result.lower(), f"data should be subject: {result}"
+        # Verb phrase should be preserved
+        assert "look" in result.lower() and "over" in result.lower()
+
 
 class TestConnectives:
     """Test eliminate_connectives with all supported connectives."""

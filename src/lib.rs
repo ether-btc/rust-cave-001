@@ -103,41 +103,44 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
             })
     };
 
-    // --- Pattern 1: "had been V-ed by" (past-perfect passive) — must run FIRST ---
-    // "The documents had been signed by the manager" → "the manager had signed the documents"
-    static PATTERN_HAD_BEEN: OnceLock<Regex> = OnceLock::new();
-    let had_been = PATTERN_HAD_BEEN
-        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+had\s+been\s+(\w+)\s+by\s+(.+)").unwrap());
+// --- Pattern 1: "had been V-ed by" (past-perfect passive) — must run FIRST ---
+// "The documents had been signed by the manager" → "the manager had signed the documents"
+// M-2 fix: Extended to capture 2-3 word verb phrases (e.g., "carried out", "set up")
+static PATTERN_HAD_BEEN: OnceLock<Regex> = OnceLock::new();
+let had_been = PATTERN_HAD_BEEN
+.get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+had\s+been\s+([\w\s]+?)\s+by\s+(.+)").unwrap());
 
-    let text = had_been.replace_all(text, |caps: &regex::Captures| {
-        let subject = &caps[1];
-        let verb_pp = &caps[2].to_lowercase();
-        let agent = &caps[3];
-        let verb_past = resolve_verb(verb_pp.as_str());
-        let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        format!("{} had {} the {}", agent_trimmed, verb_past, subject)
-    });
+let text = had_been.replace_all(text, |caps: &regex::Captures| {
+let subject = &caps[1];
+let verb_pp = &caps[2].to_lowercase().trim().to_string();
+let agent = &caps[3];
+let verb_past = resolve_verb(&verb_pp);
+let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
+format!("{} had {} the {}", agent_trimmed, verb_past, subject)
+});
 
-    // --- Pattern 2: "were V-ed by" (plural simple-past passive) ---
-    // "The balls were thrown by John" → "John threw the balls"
-    static PATTERN_WERE: OnceLock<Regex> = OnceLock::new();
-    let were_passive = PATTERN_WERE
-        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+(\w+)\s+by\s+(.+)").unwrap());
+// --- Pattern 2: "were V-ed by" (plural simple-past passive) ---
+// "The balls were thrown by John" → "John threw the balls"
+// M-2 fix: Extended to capture 2-3 word verb phrases
+static PATTERN_WERE: OnceLock<Regex> = OnceLock::new();
+let were_passive = PATTERN_WERE
+.get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)").unwrap());
 
-    let text = were_passive.replace_all(&text, |caps: &regex::Captures| {
-        let subject = &caps[1];
-        let verb_pp = &caps[2].to_lowercase();
-        let agent = &caps[3];
-        let verb_past = resolve_verb(verb_pp.as_str());
-        let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        format!("{} {} the {}", agent_trimmed, verb_past, subject)
-    });
+let text = were_passive.replace_all(&text, |caps: &regex::Captures| {
+let subject = &caps[1];
+let verb_pp = &caps[2].to_lowercase();
+let agent = &caps[3];
+let verb_past = resolve_verb(verb_pp.as_str());
+let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
+format!("{} {} the {}", agent_trimmed, verb_past, subject)
+});
 
-    // --- Pattern 3: "was V-ed by" (singular simple-past passive, original) ---
-    // "The ball was thrown by John" → "John threw the ball"
-    static PATTERN_WAS: OnceLock<Regex> = OnceLock::new();
-    let was_passive = PATTERN_WAS
-        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+was\s+(\w+)\s+by\s+(.+)").unwrap());
+// --- Pattern 3: "was V-ed by" (singular simple-past passive, original) ---
+// "The ball was thrown by John" → "John threw the ball"
+// M-2 fix: Extended to capture 2-3 word verb phrases
+static PATTERN_WAS: OnceLock<Regex> = OnceLock::new();
+let was_passive = PATTERN_WAS
+.get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+was\s+([\w\s]+?)\s+by\s+(.+)").unwrap());
 
     let result = was_passive.replace_all(&text, |caps: &regex::Captures| {
         let subject = &caps[1];
