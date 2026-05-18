@@ -1,47 +1,35 @@
-# rust-cave-001 — Session Reference (May 18, 2026)
+# CONTINUE HERE — rust-cave-001
 
-## v0.4.0 — SHIPPED
+## v0.4.1 — SHIPPED
 
-**Both blocking PRs merged and released. CI green.**
-
-### Key References
-| What | Value |
+| Item | Value |
 |------|-------|
-| Repo | `github.com/ether-btc/rust-cave-001` |
-| Latest commit | `6f80d6d` — perf(verb_maps): OnceLock caching for HashMap lookups |
-| Tag | [v0.4.0](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.0) |
-| PyPI | `pip install rust-cave-001==0.4.0` |
-| Tests | 24 Rust — all pass ✅ |
-| Clippy | 0 warnings ✅ |
+| Commit | `26d759e` |
+| Tag | [v0.4.1](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.1) |
+| PyPI | Wheel built: `dist/rust_cave_001-0.4.1-cp310-abi3-manylinux_2_34_aarch64.whl` — needs manual upload (no token on this machine) |
+| Rust Tests | 28 PASS |
+| Python Tests | 123 PASS |
 
-### What's New in v0.4.0
-- Custom error types (`CompressionError` enum)
-- Abbreviation-aware sentence splitting (27 abbreviations protected)
-- OnceLock caching for hot-path regexes and verb maps (performance)
-- build.rs dynamic python3-config detection (fixes x86_64 CI)
-- 24 Rust unit tests
+### What's New in v0.4.1
+- **Plural passive voice** — `"were V-ed by"` regex transforms to active
+- **Past-perfect passive voice** — `"had been V-ed by"` regex transforms to active  
+- **Double-article fix** — all passive patterns no longer produce `"the The X"`
+- 4 Rust + 4 Python tests for the new patterns
 
-### Pipeline (11 rules)
-1. Sentence splitting → 2. Pronoun resolution → 3. Contraction expansion →
-4. Active voice → 5. Present tense → 6. Article removal (min3) →
-7. Intensifier removal (min3) → 8. Be verb removal (min2, acronym-safe) →
-9. Connective removal → 10. Word limit (5) → 11. Completeness check
+### Next Priorities
+1. PyPI upload (needs token or GitHub Actions trusted publishing)
+2. crates.io publish (needs `cargo login` token)
+3. Self-learning framework — adaptive strategy tuning (benchmark ceiling 48.7%)
+4. Broader passive patterns: "is being V-ed", "has been V-ed", "will be V-ed"
+5. CI: re-add publish job with OIDC trusted publishing (no secrets needed)
 
-### Audit Findings (2026-05-18) — Open Issues
-| # | Severity | Location | Issue |
-|---|----------|----------|-------|
-| BUG-1 | HIGH | `lib.rs` | `(?i)` on content-removal regexes can strip acronyms (IS, AM, BE, AN, BUT, OR, AND) |
-| BUG-2 | MEDIUM | `lib.rs` | `resolve_pronouns` only replaces first occurrence, not all |
-| BUG-3 | MEDIUM | `lib.rs` | Passive voice agent regex captures leading "The" as agent name |
-| PERF-1 | MEDIUM | `classifier.rs` | `count_pattern` recompiles regex per call |
-| SEC-1 | LOW | `lib.rs` | No input size limits on `decompress()` |
-
-Full report: `wiki/audits/rust-cave-001-audit-2026-05-18-full.md`
-
-### Next Steps (Priority Order)
-1. Fix BUG-1: add `(?<![A-Z])...(?![A-Z])` uppercase boundary guards to removal regexes
-2. Fix BUG-2: resolve_pronouns loop (replace all occurrences, not just first)
-3. Fix BUG-3: passive voice agent regex double-checks for "The " prefix
-4. Fix PERF-1: cache `count_pattern` in `static OnceLock<Regex>`
-5. File GitHub issue for v2 pronoun resolution tracking
-6. crates.io publish — requires `cargo login` token
+### Key Files
+| File | Path |
+|------|------|
+| Main lib | `src/lib.rs` |
+| Classifier | `src/classifier.rs` |
+| Error types | `src/error.rs` |
+| Verb maps | `src/verb_maps.rs` |
+| Build script | `build.rs` |
+| Python tests | `tests/test_rust_cave_001.py` |
+| CI workflow | `.github/workflows/ci.yml` |
