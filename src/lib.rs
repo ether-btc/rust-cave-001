@@ -24,7 +24,26 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 
 #[pyfunction]
 /// Decompress data using LZ4 algorithm
+/// SEC-1 fix: validates input size to prevent decompression bombs.
+/// LZ4 format stores uncompressed size in first 4 bytes (little-endian u32).
+/// Max decompressed size: 256 MiB (2^28 bytes). Rejects negative sizes and
+/// sizes exceeding the limit encoded in the LZ4 frame header.
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
+    // Validate: LZ4 frame with size prefix needs at least 4 bytes header
+    if data.len() < 4 {
+        return Err(exceptions::PyOSError::new_err(
+            "Input too short: LZ4 data must be at least 4 bytes".to_string(),
+        ));
+    }
+    // Read uncompressed size from LZ4 frame header (little-endian u32)
+    let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
+    // Reject negative sizes (high bit set = interpreted as >2^31)
+    if uncompressed_size > 1 << 28 {
+        return Err(exceptions::PyOSError::new_err(format!(
+            "Decompression size limit exceeded: decompressed size would be {} bytes (max 256 MiB)",
+            uncompressed_size
+        )));
+    }
     let decompressed =
         block::decompress(data, None).map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
     Ok(decompressed)
@@ -630,26 +649,27 @@ fn resolve_pronouns(sentences: &mut [String]) {
         let noun_candidates: Vec<&str> =
             prev_words.iter().filter(|w| is_noun(w)).copied().collect();
 
-        // Check if current sentence starts with or contains a pronoun
-        let mut needs_replace = false;
-        let mut pronoun_idx = None;
-        for (j, word) in current_words.iter().enumerate() {
-            let clean = word.trim_end_matches(['.', ',', '!', '?']).to_lowercase();
-            if pronouns.contains(&clean.as_str()) && noun_candidates.len() >= 2 {
-                needs_replace = true;
-                pronoun_idx = Some(j);
-                break;
-            }
-        }
+        // Collect ALL pronoun positions that need replacement (BUG-2 fix: was only first)
+        let pronoun_indices: Vec<usize> = current_words
+            .iter()
+            .enumerate()
+            .filter(|(_, word)| {
+                let clean = (*word)
+                    .trim_end_matches(['.', ',', '!', '?'])
+                    .to_lowercase();
+                pronouns.contains(&clean.as_str()) && noun_candidates.len() >= 2
+            })
+            .map(|(j, _)| j)
+            .collect();
 
-        if needs_replace {
+        if !pronoun_indices.is_empty() {
             if let Some(last_noun) = noun_candidates.last() {
                 let replacement = last_noun.trim_end_matches(['.', ',', '!', '?']);
                 let new_words: Vec<String> = current_words
                     .iter()
                     .enumerate()
                     .map(|(j, w)| {
-                        if Some(j) == pronoun_idx {
+                        if pronoun_indices.contains(&j) {
                             replacement.to_string()
                         } else {
                             w.to_string()
