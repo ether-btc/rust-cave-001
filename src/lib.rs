@@ -562,18 +562,26 @@ fn eliminate_connectives(text: &str) -> String {
     use std::sync::OnceLock;
 
     static CONNECTIVE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = CONNECTIVE_PATTERN.get_or_init(|| {
         Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas)\b,?\s*").unwrap()
     });
+    let collapse_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
 
-    // Replace connectives with acronym guard
-    // BUG-C1 fix: return the FULL original match (including surrounding whitespace)
-    // when the guard fires. Previously `.trim()` was called, which dropped the
-    // leading/trailing spaces — causing "FOO AND BAR" to collapse to "FOOANDBAR".
-    // The guard fires for fully-uppercase words (e.g., "AND" inside "FOO AND BAR"),
-    // so the full match should be preserved verbatim. The non-guard path still
-    // returns "" to remove the connective and its surrounding whitespace.
-    pattern
+    // I-7 (Cycle 2) fix: the non-guard branch was returning "" (removing the
+    // connective AND its surrounding spaces), which CAUSED word merging:
+    //   "Use index because query slow" → "Use indexquery slow"
+    //   "However the system is slow"   → "system slow"  (lost word "However")
+    //   "query runs fast but uses mem" → "query runs fastuses memory"
+    // The function's stated purpose is to PREVENT word merging, so the
+    // non-guard path must preserve word boundaries. Fix: return a single
+    // space, then collapse runs of whitespace via SPACE_PATTERN.
+    //
+    // BUG-C1 fix (still in place): the acronym guard returns the FULL original
+    // match (including surrounding whitespace) when the guard fires, so
+    // uppercase connectives like "AND" in "FOO AND BAR" are preserved verbatim
+    // and the surrounding spaces survive intact.
+    let result = pattern
         .replace_all(text, |caps: &regex::Captures| {
             let full_match = caps.get(0).unwrap().as_str();
             let word = full_match.trim();
@@ -581,11 +589,12 @@ fn eliminate_connectives(text: &str) -> String {
             if word.chars().all(|c| c.is_uppercase()) {
                 full_match.to_string()
             } else {
-                String::new()
+                " ".to_string()
             }
         })
-        .trim()
-        .to_string()
+        .to_string();
+
+    collapse_spaces.replace_all(&result, " ").trim().to_string()
 }
 
 // Enforce word limit (2-5 words)
@@ -1089,6 +1098,54 @@ mod tests {
         assert!(!eliminate_connectives("Index helps but uses space").contains("but"));
         // No word merging
         assert!(!eliminate_connectives("raining therefore we").contains("rainingtherefore"));
+    }
+
+    /// I-7 (Cycle 2) regression: removing a lowercase connective must NOT
+    /// cause word merging. The function's stated purpose is to PREVENT word
+    /// merging. Pre-fix behaviour returned "" for the non-guard branch,
+    /// which also stripped the leading/trailing spaces:
+    ///   "Use index because query slow" → "Use indexquery slow"   (BUG)
+    ///   "However the system is slow"   → "system slow"            (BUG)
+    ///   "query runs fast but uses mem" → "query runs fastuses memory"  (BUG)
+    /// Post-fix: a single space is substituted, then runs of whitespace
+    /// are collapsed. Word boundaries are preserved.
+    #[test]
+    fn test_eliminate_connectives_no_word_merging() {
+        // Original bug case: "because" removal must leave a space between
+        // "index" and "query".
+        let r1 = eliminate_connectives("Use index because query slow");
+        assert!(
+            !r1.contains("indexquery"),
+            "Word merging on 'because' removal: {r1:?}"
+        );
+        assert_eq!(r1, "Use index query slow");
+
+        // "However" at the start: leading space before the first word must
+        // not be eaten entirely.
+        let r2 = eliminate_connectives("However the system is slow");
+        assert!(
+            !r2.starts_with("system"),
+            "Lost the first word to leading-space stripping: {r2:?}"
+        );
+        assert_eq!(r2, "the system is slow");
+
+        // Mid-sentence "but" must not glue "fast" and "uses".
+        let r3 = eliminate_connectives("query runs fast but uses memory");
+        assert!(
+            !r3.contains("fastuses"),
+            "Word merging on 'but' removal: {r3:?}"
+        );
+        assert_eq!(r3, "query runs fast uses memory");
+
+        // Multiple connectives, with a trailing comma.
+        let r4 = eliminate_connectives("Index helps, but uses space, therefore is slow");
+        assert!(!r4.contains("but"));
+        assert!(!r4.contains("therefore"));
+        // Note: the regex `,?` only strips a comma that comes RIGHT AFTER the
+        // connective (so ", but" → " "), not standalone commas. That's a
+        // separate function's job; eliminate_connectives shouldn't claim it.
+        assert!(!r4.contains("  "), "Double space left behind: {r4:?}");
+        assert_eq!(r4, "Index helps, uses space, is slow");
     }
 
     #[test]
