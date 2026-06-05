@@ -25,10 +25,11 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 #[pyfunction]
 /// Decompress data using LZ4 algorithm
 /// SEC-1 fix: validates input size to prevent decompression bombs.
-/// Uses lz4::block format (no built-in size header). The 4-byte check is a
-/// heuristic that reads the first 4 bytes of block data as a u32 and rejects
-/// values suggesting >256 MiB output. This is defense-in-depth; block format
-/// has internal size metadata that lz4's decompressor uses for allocation.
+/// The lz4 crate's `block::compress(..., prepend_size=true)` writes the
+/// uncompressed size as the first 4 bytes of the output (little-endian u32),
+/// which the matching `block::decompress(data, None)` reads back from src[0..4].
+/// The size prefix is at the START, not the end (the end is the last bytes
+/// of the literal/match stream).
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
     if data.len() < 4 {
@@ -36,9 +37,9 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
             "Input too short: LZ4 data must be at least 4 bytes".to_string(),
         ));
     }
-    // Read uncompressed size from LZ4 frame header (little-endian u32)
+    // Read uncompressed size from LZ4 block format (first 4 bytes, little-endian u32).
     let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    // Reject negative sizes (high bit set = interpreted as >2^31)
+    // Reject sizes > 256 MiB to prevent decompression bombs
     if uncompressed_size > 1 << 28 {
         return Err(exceptions::PyOSError::new_err(format!(
             "Decompression size limit exceeded: decompressed size would be {} bytes (max 256 MiB)",
@@ -566,12 +567,19 @@ fn eliminate_connectives(text: &str) -> String {
     });
 
     // Replace connectives with acronym guard
+    // BUG-C1 fix: return the FULL original match (including surrounding whitespace)
+    // when the guard fires. Previously `.trim()` was called, which dropped the
+    // leading/trailing spaces — causing "FOO AND BAR" to collapse to "FOOANDBAR".
+    // The guard fires for fully-uppercase words (e.g., "AND" inside "FOO AND BAR"),
+    // so the full match should be preserved verbatim. The non-guard path still
+    // returns "" to remove the connective and its surrounding whitespace.
     pattern
         .replace_all(text, |caps: &regex::Captures| {
-            let word = caps.get(0).unwrap().as_str().trim();
-            // Acronym protection: skip removal if word is fully uppercase (e.g., "AND" in "ANDROID")
+            let full_match = caps.get(0).unwrap().as_str();
+            let word = full_match.trim();
+            // Acronym protection: skip removal if word is fully uppercase (e.g., "AND" in "FOO AND BAR")
             if word.chars().all(|c| c.is_uppercase()) {
-                word.to_string()
+                full_match.to_string()
             } else {
                 String::new()
             }
@@ -931,6 +939,17 @@ mod tests {
         // Lowercase connectives still stripped
         let r3 = eliminate_connectives("Use index because query slow");
         assert!(!r3.contains("because"));
+
+        // BUG-C1 regression: uppercase connective "AND" (surrounded by spaces)
+        // must NOT be stripped AND must NOT collapse the surrounding whitespace.
+        // Previous bug: the acronym guard called `.trim()` on the matched span
+        // and returned the trimmed word, losing the leading/trailing spaces
+        // and producing "FOOANDBAR" instead of preserving "FOO AND BAR".
+        let r4 = eliminate_connectives("FOO AND BAR");
+        assert_eq!(r4, "FOO AND BAR", "uppercase AND must preserve spacing");
+
+        let r5 = eliminate_connectives("XOR BUT Y"); // mix of upper & upper
+        assert_eq!(r5, "XOR BUT Y", "uppercase BUT must preserve spacing");
     }
 
     #[test]

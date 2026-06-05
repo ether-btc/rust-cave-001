@@ -430,40 +430,6 @@ pub static SIMPLE_PAST_TO_PRESENT: &[(&str, &str)] = &[
     ("wore", "wear"),
     ("won", "win"),
     ("regretted", "regret"),
-    ("forgotten", "forget"),
-    ("forgiven", "forgive"),
-    ("frozen", "freeze"),
-    ("gotten", "get"),
-    ("hidden", "hide"),
-    ("ridden", "ride"),
-    ("rung", "ring"),
-    ("shown", "show"),
-    ("spoken", "speak"),
-    ("swum", "swim"),
-    ("worn", "wear"),
-    ("written", "write"),
-    ("driven", "drive"),
-    ("eaten", "eat"),
-    ("fallen", "fall"),
-    ("flown", "fly"),
-    ("given", "give"),
-    ("grown", "grow"),
-    ("known", "know"),
-    ("lain", "lie"),
-    ("risen", "rise"),
-    ("shaken", "shake"),
-    ("shrunk", "shrink"),
-    ("sung", "sing"),
-    ("sunk", "sink"),
-    ("stolen", "steal"),
-    ("thrown", "throw"),
-    ("taken", "take"),
-    ("torn", "tear"),
-    ("woken", "wake"),
-    ("broken", "break"),
-    ("chosen", "choose"),
-    ("drawn", "draw"),
-    ("drunk", "drink"),
     // E-drop regular verbs (base ends in "e", past adds "d")
     ("agreed", "agree"),
     ("planned", "plan"),
@@ -793,6 +759,84 @@ mod tests {
                 past_pres.get(sp),
                 Some(pres),
                 "Present map missing '{sp}' or wrong present"
+            );
+        }
+    }
+
+    /// BUG-C1 regression: past-participle forms must NOT appear in
+    /// SIMPLE_PAST_TO_PRESENT, because the pipeline runs PP→SP→PRES in order.
+    /// Having a PP entry in the SP→PRES map would misroute "I have forgotten"
+    /// to "forgotten" (key not found) OR, if duplicated, leak ambiguity into
+    /// the simple-past lookup. The audit removed 34 such entries.
+    #[test]
+    fn test_no_past_participles_in_simple_past_map() {
+        let past_pres = present_tense_map();
+        // 34 known PP forms that were incorrectly present in v0.4.2
+        let past_participles = [
+            "forgotten",
+            "forgiven",
+            "frozen",
+            "gotten",
+            "hidden",
+            "ridden",
+            "rung",
+            "shown",
+            "spoken",
+            "swum",
+            "worn",
+            "written",
+            "driven",
+            "eaten",
+            "fallen",
+            "flown",
+            "given",
+            "grown",
+            "known",
+            "lain",
+            "risen",
+            "shaken",
+            "shrunk",
+            "sung",
+            "sunk",
+            "stolen",
+            "thrown",
+            "taken",
+            "torn",
+            "woken",
+            "broken",
+            "chosen",
+            "drawn",
+            "drunk",
+        ];
+        for pp in past_participles {
+            assert!(
+                !past_pres.contains_key(pp),
+                "PP form '{pp}' must NOT be a key in SIMPLE_PAST_TO_PRESENT \
+                 (it belongs in PAST_PARTICIPLE_TO_SIMPLE_PAST only)"
+            );
+        }
+    }
+
+    /// BUG-C1 regression (companion): the TRUE simple-past forms (e.g., "forgot",
+    /// "broke", "froze") MUST still be present in SIMPLE_PAST_TO_PRESENT, so
+    /// "I forgot" still normalises to "I forget".
+    #[test]
+    fn test_true_simple_pasts_still_present() {
+        let past_pres = present_tense_map();
+        for (sp, expected_pres) in [
+            ("forgot", "forget"),
+            ("broke", "break"),
+            ("froze", "freeze"),
+            ("drank", "drink"),
+            ("spoke", "speak"),
+            ("wrote", "write"),
+            ("took", "take"),
+            ("wore", "wear"),
+        ] {
+            assert_eq!(
+                past_pres.get(sp),
+                Some(&expected_pres),
+                "True simple-past '{sp}' should map to '{expected_pres}'"
             );
         }
     }
