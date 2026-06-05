@@ -278,3 +278,93 @@ gh run list       # 3 most recent: all ✅ success
 ---
 
 *Report generated: 2026-05-18 | Auditor: Hermes Agent (MiniMax-M2.7)*
+
+---
+
+# Audit Cycle 2 — 2026-06-05
+
+**Auditor:** Hermes Agent (MiniMax-M3) · **Branch:** `audit-2026-06-05` · **Commits:** e86518e, 4512531
+
+## Executive Summary
+
+| Dimension | Rating (was → now) | Notes |
+|-----------|---------------------|-------|
+| Correctness | ★★★☆☆ → ★★★★★ | I-2 (acronym word-merge), I-3 (PP/SP map ambiguity), I-7 (non-guard word-merge) all fixed; I-1 false positive correctly reverted |
+| Performance | ★★★★☆ | Unchanged — OnceLock caching in place |
+| Security | ★★★☆☆ → ★★★★☆ | SEC-1 re-verified (false positive); lz4 crate `prepend_size=true` puts size at start, code is correct |
+| Testing | ★★★★★ | 31 → 34 Rust tests (+3 regression); 127 Python tests unchanged; ruff + mypy + clippy + fmt all clean |
+| Architecture | ★★★★☆ | Unchanged |
+
+**Overall: PRODUCTION-READY** — 5 issues identified, 4 fixed, 1 false positive correctly reverted and documented. All checks green.
+
+## Issues Found in Cycle 1 (2026-05-29 review)
+
+| ID | Severity | File:line | Status | Description |
+|----|----------|-----------|--------|-------------|
+| I-1 | HIGH (claimed) | src/lib.rs:40 | ❌ REVERTED | Reviewer claimed `decompress()` should read the LZ4 size from the LAST 4 bytes. Empirical + source verification: the `lz4` crate's `block::compress(..., prepend_size=true)` writes the size to the FIRST 4 bytes. Original code was correct. |
+| I-2 | HIGH | src/lib.rs:572 | ✅ FIXED | `eliminate_connectives` acronym guard called `.trim()` on the matched span and returned the trimmed word, losing the leading/trailing spaces. Caused `"FOO AND BAR"` → `"FOOANDBAR"`. Fixed: guard now returns the full match. |
+| I-3 | MEDIUM | src/verb_maps.rs:430-466 | ✅ FIXED | 34 past-participle forms (forgotten, eaten, written, etc.) were duplicated in `SIMPLE_PAST_TO_PRESENT`. Pipeline order is PP→SP→PRES, so PPs should only live in the PP→SP map. The duplicate would cause `"I have forgotten the password"` → `"I have forget the password"`. Fixed: removed all 34 entries. |
+| I-4 | LOW | scripts/uninstall.sh:124 | ✅ FIXED | `error "..." && exit 1` depended on `error()` returning success. If the function ever returned non-zero, the `&&` would short-circuit and `exit 1` would never run. Fixed: replaced with `;` so `exit 1` always runs. |
+| I-6 | LOW | src/error.rs:23 | ✅ FIXED | Bogus `#[allow(dead_code)]` on `into_pyerr()` — the method is used at lib.rs:788, 827. Removed the bad attribute. The remaining `#[allow(dead_code)]` on `VoiceTransformFailed`/`EmptyInput` enum variants is correct (forward-declared for future use). |
+
+## Issues Found in Cycle 2 (2026-06-05 re-audit after Cycle 1 fixes)
+
+| ID | Severity | File:line | Status | Description |
+|----|----------|-----------|--------|-------------|
+| I-7 | MEDIUM | src/lib.rs:590 | ✅ FIXED | The non-guard branch of `eliminate_connectives` was returning `""` (empty), which removed the connective AND its surrounding spaces. This caused word merging in the most common case: `"Use index because query slow"` → `"Use indexquery slow"`. The function's stated purpose is to PREVENT word merging, but its implementation caused it. Fixed: return `" "` (single space) and add `collapse_spaces` post-processing. |
+
+## Issues Reviewed and Closed (no action needed)
+
+| ID | Severity | File | Status | Description |
+|----|----------|------|--------|-------------|
+| I-5 | LOW | n/a | CLOSED | No actual duplication of `stop_words` (reviewer claim was incorrect). |
+| PERF-1 | MEDIUM | n/a | CLOSED | Verb maps already cached via OnceLock (closed in 2026-05-29 audit). |
+| M-2 (multi-word verb phrases) | n/a | src/lib.rs:103 | VERIFIED | Tested live: `"The ball was carried out by John"` → `"John carried out the ball"`. The regex captures multi-word phrases correctly, and the `resolve_verb` fallback returns the unchanged phrase when the map lookup fails (which IS the simple past form for regular multi-word verbs). |
+| count_pattern mutex race | LOW | src/classifier.rs:270 | BENIGN | Two threads may both miss the cache and both compile the same regex. No corruption; second insert is wasted work. Not worth fixing (the `OnceLock` per-pattern refactor is a perf nit, not a bug). |
+
+## Regression Tests Added
+
+| Test | File | Covers |
+|------|------|--------|
+| `test_eliminate_connectives_acronym_guard` (2 new assertions) | src/lib.rs:935 | I-2: `"FOO AND BAR"`, `"XOR BUT Y"` — acronym guard preserves spacing |
+| `test_no_past_participles_in_simple_past_map` | src/verb_maps.rs:773 | I-3: 34 PP forms must NOT be in SP→PRES |
+| `test_true_simple_pasts_still_present` | src/verb_maps.rs:799 | I-3: 8 true SP forms MUST be in SP→PRES |
+| `test_eliminate_connectives_no_word_merging` | src/lib.rs:1106 | I-7: 4 cases of lowercase connective removal preserving word boundaries |
+
+## Final Validation (Cycle 3)
+
+```
+cargo test --lib        → 34 passed, 0 failed
+maturin develop --release
+PYTHONPATH=src python -m pytest tests/ -q
+                        → 127 passed
+cargo clippy --all-targets -- -D warnings
+                        → clean
+cargo fmt --check       → clean
+ruff check tests/       → All checks passed
+mypy tests/ --ignore-missing-imports
+                        → Success: no issues found
+maturin build --release → 879 KB manylinux wheel built
+fresh venv install + pytest → 127 passed (roundtrip verified)
+```
+
+LZ4 roundtrip verified on 10 cases including empty string, 100-char and 215-char strings.
+
+## Commits on `audit-2026-06-05`
+
+```
+4512531 fix(audit-2026-06-05): I-7 — eliminate_connectives no longer causes word merging
+e86518e fix(audit-2026-06-05): apply Cycle 1 audit fixes (4 issues, 1 false positive)
+1084aa6 docs: CONTINUE_HERE for v0.4.3 release (2026-06-05)  ← base
+```
+
+## Production-Readiness Verdict
+
+**✅ READY FOR MERGE** — All issues from both audit cycles are addressed and verified. No known HIGH/MEDIUM bugs remain. The branch `audit-2026-06-05` is ready to be merged into `master` and a v0.4.4 (or v0.5.0) release tagged.
+
+---
+
+*Cycle 3 report appended: 2026-06-05 | Auditor: Hermes Agent (MiniMax-M3)*
+
+---
+
