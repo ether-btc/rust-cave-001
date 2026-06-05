@@ -1,96 +1,102 @@
 # CONTINUE HERE — rust-cave-001
 
-## v0.4.1 → v0.4.2 — AUDIT FIXES COMPLETE
+## v0.4.3 — RELEASED (2026-06-05)
 
 | Item | Value |
 |------|-------|
-| HEAD | `f0b9d5e` |
-| Prev | `be8f3d6` (CI green before fixes) |
-| Tag | [v0.4.1](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.1) |
-| Rust Tests | 28 PASS ✅ |
-| Python Tests | 123 PASS ✅ |
-| Clippy | 0 warnings ✅ |
-| cargo fmt | clean ✅ |
-| CI | GREEN ✅ (3 consecutive: 26049619756, 26050043345, 26050355755) |
+| HEAD | `45f7486` (docs: add v0.4.3 to CHANGELOG) |
+| Tag | [v0.4.3](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.3) |
+| PyPI | `pip install rust-cave-001==0.4.3` (already on PyPI from prior upload) |
+| GitHub release | https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.3 |
+| Rust tests | 28 PASS ✅ |
+| Python tests | 127 PASS ✅ |
+| Wheel | `rust_cave_001-0.4.3-cp310-abi3-manylinux_2_34_aarch64.whl` (900 KB) |
+| Token reduction | 50% on reference text (10 → 5 tokens) |
 
----
+## What Was Done This Session (2026-06-05)
 
-## Audit Fixes Applied This Session
+1. **Synced local master with origin/master** — local was 1 commit behind
+2. **Built v0.4.3 wheel** with `maturin build --release -o dist/`
+3. **Smoke-tested locally** — 127/127 Python tests pass in fresh venv
+4. **Discovered v0.4.3 was already on PyPI** (uploaded by CI/another process)
+5. **Added CHANGELOG entry** for v0.4.3 in commit `45f7486`
+6. **Created annotated tag** `v0.4.3` and pushed to origin
+7. **Created GitHub release** with full release notes
+8. **Updated wiki** to reflect v0.4.3 state
+9. **Filed aeon entry** for the release
 
-### BUG-2 (MEDIUM) — resolve_pronouns replaced only first occurrence
-**File:** `src/lib.rs:653-670`
-**Symptom:** Sentence "It was great and it helped" → only first "it" replaced
-**Fix:** Changed from `break` after first match to collecting all `pronoun_indices` via `filter + map`, then replacing all via `pronoun_indices.contains(&j)`.
-**Commit:** `00f2202`
+## Audit Status (3-cycle audit, 2026-05-29)
 
-### SEC-1 (LOW) — decompress() had no input size limits
-**File:** `src/lib.rs:27-49`
-**Symptom:** Malicious LZ4 frame with huge declared decompressed size could allocate excessive memory.
-**Fix:** Added header validation:
-- Rejects inputs < 4 bytes (LZ4 frame minimum)
-- Reads uncompressed_size from first 4 bytes (little-endian u32)
-- Rejects sizes > 256 MiB (2^28) to prevent decompression bombs
-**Commit:** `00f2202`
+| ID | Severity | Status | Notes |
+|----|----------|--------|-------|
+| BUG-1 | HIGH | ✅ FIXED | `(?i)` on removal regexes — acronym guard added |
+| BUG-2 | MEDIUM | ✅ FIXED | resolve_pronouns now replaces ALL occurrences |
+| BUG-3 | MEDIUM | ✅ FIXED | Passive voice agent regex double-check for "The " prefix |
+| PERF-1 | MEDIUM | ✅ FIXED | count_pattern cached via OnceLock |
+| SEC-1 | LOW | ✅ FIXED | decompress() validates size limits |
 
----
+## v0.5.0 Backlog (4 active items)
 
-## Audit Status (All Items)
+| ID | Item | Effort | Notes |
+|----|------|--------|-------|
+| **L-1** | 88 clippy pedantic warnings | Medium | Deferred from audit |
+| **L-2** | README says "7 rules" — should say 11 | Small | Easy docs fix |
+| **L-4** | Missing connectives `then`, `thus` | Small | Add to regex + tests |
+| **L-6** | Add `ruff` to CI | Small | Quality infra |
 
-|| ID | Severity | Status | Notes ||
-||----|----------|--------|-------||
-|| BUG-1 | HIGH | ✅ FIXED | `(?i)` on removal regexes — ALL functions have uppercase acronym protection (audited 2026-05-29) ||
-|| BUG-2 | MEDIUM | ✅ FIXED | resolve_pronouns now replaces ALL occurrences ||
-|| BUG-3 | MEDIUM | ✅ FIXED | Passive voice agent regex double-check for "The " prefix ||
-|| PERF-1 | MEDIUM | ✅ FIXED | count_pattern cached via OnceLock ||
-|| SEC-1 | LOW | ✅ FIXED | decompress() now validates size limits ||
+Plus deferred: I-1/I-2 (upstream SPEC rules 5/9 gaps), crates.io publish (needs token).
 
----
+## Key Files
 
-## CI History
-
-| Run | SHA | Result | Notes |
-|-----|-----|--------|-------|
-| 26050355755 | f0b9d5e | ✅ success | docs: log BUG-2 and SEC-1 fixes |
-| 26050043345 | 00f2202 | ✅ success | fix: BUG-2 replace all pronouns, SEC-1 decompress size limits |
-| 26049619756 | be8f3d6 | ✅ success | docs: update CONTINUE_HERE |
-| 26049391338 | dcfaca1 | ✅ success | fix(clippy): needless_borrow |
-| 26049254018 | b310a62 | ❌ failure | clippy: needless_borrow |
-| 26045414023 | 03cda81 | ❌ failure | cargo fmt --check |
-
----
-
-## Remaining Open Items
-
-1. ~~**BUG-1** (HIGH): `(?i)` on content-removal regexes strips acronyms — need to audit all pipeline functions~~ ✅ FIXED (audited 2026-05-29, all functions protected)
-2. **L-1**: 88 clippy pedantic warnings (deferred to v0.5.0)
-3. **L-2**: Docs mismatch "9 rules" vs 11 (deferred to v0.5.0)
-4. **L-4**: Missing upstream SPEC connectives `then`, `thus` (deferred to v0.5.0)
-5. **L-5**: Duplicated stop_words list (deferred to v0.5.0)
-6. **L-6**: No ruff in CI (deferred to v0.5.0)
-7. **I-1/I-2**: Upstream SPEC Rules 5 and 9 gaps (deferred to v0.5.0)
-8. **crates.io publish**: needs `cargo login` token
-
-## Release Status: v0.4.2 READY
-
-**All critical items resolved. Non-blocking issues deferred to v0.5.0.**
-
-### Release Checklist
-- [x] All tests pass (151/151)
-- [x] CI green (3 consecutive runs)
-- [x] Clippy clean (0 warnings)
-- [x] All audit items resolved
-- [ ] Update CHANGELOG.md
-- [ ] Tag release: `git tag v0.4.2`
-- [ ] Push to GitHub
-- [ ] Create GitHub release notes
-
-### Key Files
 | File | Path |
 |------|------|
-| Main lib | `src/lib.rs` |
-| Classifier | `src/classifier.rs` |
+| Main lib | `src/lib.rs` (43 KB) |
+| Classifier | `src/classifier.rs` (14 KB) |
 | Error types | `src/error.rs` |
-| Verb maps | `src/verb_maps.rs` |
+| Verb maps | `src/verb_maps.rs` (23 KB) |
 | Build script | `build.rs` |
 | Python tests | `tests/test_rust_cave_001.py` |
 | CI workflow | `.github/workflows/ci.yml` |
+| CHANGELOG | `CHANGELOG.md` |
+
+## Next Session
+
+The natural next direction is **v0.5.0 backlog work** — L-2, L-4, and L-6 are
+all small and self-contained, can be done in one sitting. After those, the
+strategic direction is the **self-learning framework** per
+`~/wiki/concepts/self-learning-caveman-framework.md`.
+
+## Verification Commands
+
+```bash
+# Build wheel
+cd ~/projects/rust-cave-001
+export PATH="$HOME/.cargo/bin:$PATH"
+maturin build --release -o dist/ --interpreter .venv/bin/python
+
+# Install + test
+uv venv /tmp/rc-test && source /tmp/rc-test/bin/activate
+uv pip install /tmp/rc-test/bin/python dist/rust_cave_001-*.whl pytest
+/tmp/rc-test/bin/python -m pytest tests/ -q
+
+# Tag + push
+git tag -a vX.Y.Z -m "..." HEAD
+git push origin vX.Y.Z
+gh release create vX.Y.Z --repo ether-btc/rust-cave-001 --title "..." --notes "..."
+```
+
+## Reference Links
+
+- **Repo:** https://github.com/ether-btc/rust-cave-001
+- **PyPI:** https://pypi.org/project/rust-cave-001/
+- **Wiki entity:** ~/wiki/entities/rust-cave-001.md
+- **Self-learning framework concept:** ~/wiki/concepts/self-learning-caveman-framework.md
+- **Aeon entry:** `ether-btc/rust-cave-001#v043` (filed 2026-06-05)
+
+## CI History (most recent)
+
+| Run | SHA | Result | Notes |
+|-----|-----|--------|-------|
+| 26050355755 | f0b9d5e | ✅ | docs: log BUG-2 and SEC-1 |
+| 26050043345 | 00f2202 | ✅ | BUG-2 + SEC-1 fixes |
+| 26049619756 | be8f3d6 | ✅ | docs: update CONTINUE_HERE |
