@@ -1,5 +1,18 @@
 # CONTINUE HERE — rust-cave-001
 
+## v0.4.4 — AUDIT FIXES PENDING MERGE (2026-06-05)
+
+| Item | Value |
+|------|-------|
+| Branch | `audit-2026-06-05` (3 commits ahead of master) |
+| PR | [#10](https://github.com/ether-btc/rust-cave-001/pull/10) (open, awaiting review) |
+| Base | master@1084aa6 (v0.4.3) |
+| Local HEAD | `64d0755` (docs) |
+| Local commits | `e86518e` (Cycle 1), `4512531` (I-7), `64d0755` (docs) |
+
+**Audit verdict:** PRODUCTION-READY. 5 issues found (4 fixed, 1 false positive reverted).
+4 new regression tests added. 34/34 Rust + 127/127 Python tests pass; clippy/fmt/ruff/mypy clean.
+
 ## v0.4.3 — RELEASED (2026-06-05)
 
 | Item | Value |
@@ -13,7 +26,26 @@
 | Wheel | `rust_cave_001-0.4.3-cp310-abi3-manylinux_2_34_aarch64.whl` (900 KB) |
 | Token reduction | 50% on reference text (10 → 5 tokens) |
 
-## What Was Done This Session (2026-06-05)
+## What Was Done This Session (2026-06-05, session 2 — 3-cycle audit)
+
+1. **Branched `audit-2026-06-05`** from master@1084aa6
+2. **Cycle 1:** 5 issues found in initial review
+   - I-2 (HIGH) fixed: eliminate_connectives acronym guard word-merge
+   - I-3 (MEDIUM) fixed: 34 PP entries removed from SP→PRES map
+   - I-4 (LOW) fixed: uninstall.sh && exit 1 short-circuit
+   - I-6 (LOW) fixed: bogus #[allow(dead_code)] on into_pyerr
+   - I-1 (HIGH claimed) REVERTED: false positive about LZ4 size location
+3. **Cycle 2:** 1 new issue found (I-7) — eliminate_connectives non-guard branch
+   caused word merging. Fixed: return " " + collapse_spaces.
+4. **Cycle 3:** All validation green (34 Rust + 127 Python tests, clippy/fmt/ruff/mypy)
+5. **4 new regression tests** added
+6. **AUDIT.md** updated (280 → 370 lines)
+7. **Branch pushed** to origin: `git push -u origin audit-2026-06-05`
+8. **PR #10 opened** via `gh pr create` with full description
+9. **Wiki updated**: entity, session-summary, continue ref, log entry (commit `7d39c6a`)
+10. **Aeon entry filed**: `ether-btc/rust-cave-001#10` (pending_maintainer_review)
+
+## What Was Done This Session (2026-06-05, session 1 — v0.4.3 release)
 
 1. **Synced local master with origin/master** — local was 1 commit behind
 2. **Built v0.4.3 wheel** with `maturin build --release -o dist/`
@@ -25,15 +57,18 @@
 8. **Updated wiki** to reflect v0.4.3 state
 9. **Filed aeon entry** for the release
 
-## Audit Status (3-cycle audit, 2026-05-29)
+## Audit Status (3-cycle audit, 2026-06-05, branch `audit-2026-06-05`)
 
-| ID | Severity | Status | Notes |
-|----|----------|--------|-------|
-| BUG-1 | HIGH | ✅ FIXED | `(?i)` on removal regexes — acronym guard added |
-| BUG-2 | MEDIUM | ✅ FIXED | resolve_pronouns now replaces ALL occurrences |
-| BUG-3 | MEDIUM | ✅ FIXED | Passive voice agent regex double-check for "The " prefix |
-| PERF-1 | MEDIUM | ✅ FIXED | count_pattern cached via OnceLock |
-| SEC-1 | LOW | ✅ FIXED | decompress() validates size limits |
+| ID | Sev | Status | Notes |
+|----|-----|--------|-------|
+| I-1 | HIGH (claimed) | ❌ REVERTED | False positive — LZ4 size is at FIRST 4 bytes, not LAST |
+| I-2 | HIGH | ✅ FIXED | eliminate_connectives acronym guard returned trimmed word, losing spaces |
+| I-3 | MEDIUM | ✅ FIXED | 34 PP entries removed from SIMPLE_PAST_TO_PRESENT |
+| I-4 | LOW | ✅ FIXED | uninstall.sh `&& exit 1` short-circuit |
+| I-6 | LOW | ✅ FIXED | bogus #[allow(dead_code)] on into_pyerr |
+| I-7 | MEDIUM | ✅ FIXED (Cycle 2) | eliminate_connectives non-guard branch word-merge |
+
+See AUDIT.md for the full report. PR #10 has the complete description.
 
 ## v0.5.0 Backlog (4 active items)
 
