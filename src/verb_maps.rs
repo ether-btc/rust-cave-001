@@ -345,7 +345,7 @@ pub static PAST_PARTICIPLE_TO_SIMPLE_PAST: &[(&str, &str)] = &[
 /// Covers irregular simple-past forms plus common regular -ed verbs for fast lookup,
 /// avoiding the regex fallback for high-frequency words.
 ///
-/// Total: 220 entries
+/// Total: 357 entries
 pub static SIMPLE_PAST_TO_PRESENT: &[(&str, &str)] = &[
     // ── Preserved from v0.2.1 (147 entries) ─────────────────────────────────
     ("threw", "throw"),
