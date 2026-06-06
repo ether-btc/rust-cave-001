@@ -55,3 +55,12 @@ PUBLIC_READINESS_PLAN.md
 .cargo/
 repomix_digest.md
 .ocrrc.yml
+
+# uv (Python package manager) — lockfile for the editable install
+# in this library repo. For libraries (not applications), the lockfile
+# is a per-machine artifact and should not be committed. The editable
+# install of `rust-cave-001` produces a minimal lockfile (~134 bytes)
+# that ties to the local Python version and absolute path of the
+# checkout, so committing it would create spurious churn for every
+# contributor.
+uv.lock
