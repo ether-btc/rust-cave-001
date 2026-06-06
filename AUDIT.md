@@ -364,7 +364,130 @@ e86518e fix(audit-2026-06-05): apply Cycle 1 audit fixes (4 issues, 1 false posi
 
 ---
 
-*Cycle 3 report appended: 2026-06-05 | Auditor: Hermes Agent (MiniMax-M3)*
+# Audit Cycle 3 — 2026-06-05 (post-merge re-audit, I-8)
+
+**Auditor:** Hermes Agent (MiniMax-M3) · **Branch:** `audit-2026-06-05` · **Commit:** 74a3016
+
+## Correction to the Previous Verdict
+
+The "PRODUCTION-READY" verdict at the bottom of the prior cycle was **wrong**. A
+top-level `M src/lib.rs` in the working tree contained three `verify_e*_bug` tests
+that the prior auditor (or a prior session) had added but failed to:
+
+1. Indent properly (they were at column 0, outside `mod tests` — so `cargo test --lib`
+   skipped them on the first run with a stale build cache, which is why the
+   34/34 figure was misleading).
+2. Fix the underlying bug they revealed.
+
+When clippy forced a full rebuild, `cargo test --lib` reported the truth:
+**34 passed + 3 failed = 37 total**. The previous "34 passed" was real but
+incomplete — the file actually had 37 tests at the time of the first run; the
+stale build simply didn't see them.
+
+## I-8: Acronym Guard Broken by Trailing Comma (E38 / E43 / E47)
+
+| ID | Severity | File:line | Status | Description |
+|----|----------|-----------|--------|-------------|
+| I-8 | MEDIUM | src/lib.rs:589 | ✅ FIXED | `eliminate_connectives` acronym guard did `word.chars().all(is_uppercase)` on the trimmed match. When the regex's `,?` captures a trailing comma (e.g. `" AND, "`), the trimmed word is `"AND,"` — and `,` is not uppercase, so the guard does NOT fire and the uppercase connective is stripped. Three observed failures:  **E43:** `"AND,"` → `""`  **E38:** `"AND,but"` → `""`  **E47:** `"FOO AND, BAR"` → `"FOO BAR"` |
+
+### Root Cause
+
+```rust
+// Pre-fix:
+let word = full_match.trim();          // "AND," (with trailing comma)
+if word.chars().all(|c| c.is_uppercase()) {  // false — ',' is not uppercase
+    full_match.to_string()              // guard does NOT fire
+} else {
+    " ".to_string()                     // "AND," is replaced with a single space
+}
+```
+
+### Fix
+
+Filter the trimmed word to its **alphabetic** characters before the uppercase
+check, so trailing/embedded punctuation from the regex match cannot break the
+guard:
+
+```rust
+let alpha: String = word.chars().filter(|c| c.is_alphabetic()).collect();
+if !alpha.is_empty() && alpha.chars().all(|c| c.is_uppercase()) {
+    full_match.to_string()
+} else {
+    " ".to_string()
+}
+```
+
+This makes the guard robust against any punctuation the `\s*` or `,?` parts of
+the pattern capture alongside the connective word.
+
+### Regression Test
+
+Renamed and indented the three orphan tests into a single proper
+`test_eliminate_connectives_acronym_with_trailing_comma` test (4 cases) inside
+`mod tests`, so the test harness actually runs them. The lowercase control case
+(`"foo and, bar"` → `"foo bar"`) is included to prove the non-guard path still
+strips lowercase connectives correctly.
+
+## Cycle 3 Validation
+
+```
+cargo test --lib                → 35 passed, 0 failed   (was 34 + 1 new)
+cargo clippy --all-targets -- -D warnings  → clean
+cargo fmt --all -- --check      → clean
+cargo build --release           → clean
+uv run pytest tests/            → 127 passed
+```
+
+End-to-end smoke test through the compiled `librust_cave_001.so` with `rc.compress()`:
+
+| Input | Output | Verdict |
+|-------|--------|---------|
+| `"FOO AND, BAR baz qux"` | `"FOO AND, BAR baz qux"` | ✅ E47 round-trip |
+| `"foo and, bar baz qux"` | `"foo bar baz qux"` | ✅ lowercase stripped |
+| `"FOO, AND, BAR baz"` | `"FOO, AND, BAR baz"` | ✅ multi-acronym preserved |
+
+## Commits on `audit-2026-06-05` (final)
+
+```
+74a3016  fix(audit-2026-06-05): I-8 — acronym guard survives trailing comma
+8fe5d51  docs: update CONTINUE_HERE for v0.4.4 audit (PR #10 pending)
+64d0755  docs(audit-2026-06-05): append cycle 2 audit report to AUDIT.md
+4512531  fix(audit-2026-06-05): I-7 — eliminate_connectives no longer causes word merging
+e86518e  fix(audit-2026-06-05): apply Cycle 1 audit fixes (4 issues, 1 false positive)
+1084aa6  docs: CONTINUE_HERE for v0.4.3 release (2026-06-05)  ← base
+```
+
+## Production-Readiness Verdict (REVISED)
+
+**✅ READY FOR MERGE (this time for real)** — The I-8 fix is in, the regression
+test runs as part of `cargo test --lib`, the end-to-end pipeline preserves
+uppercase connectives with trailing commas, and the prior cycle's 3 falsified
+"production-ready" claim is corrected.
+
+## Out-of-Scope Findings (noted, not fixed)
+
+These were observed during the audit but are pre-existing in `master`, not in
+the `audit-2026-06-05` diff, so they are deferred:
+
+1. **PP→SP data error**: `("shrunk", "shrunk")` at verb_maps.rs:182. The PP form
+   `"shrunk"` should map to the simple past `"shrank"`, not to itself. The
+   comment claims this is a "no-change verb where both forms are identical" but
+   `"shrunk"` is a PP, not a SP — the SP is `"shrank"`. Low-impact (output is
+   still understandable: "I have shrunk" → "I shrunk" — colloquial but
+   non-standard). Fix in a future maintenance PR.
+
+2. **Stale header counts**: verb_maps.rs:19 says "220-entry HashMap" for
+   `SIMPLE_PAST_TO_PRESENT`. Actual count is 357. After the I-3 removal of 34
+   PPs, the count is 323. The header is misleading but the test
+   `test_present_map_minimum_count` (asserts ≥ 200) still passes. Cosmetic fix.
+
+3. **CDylib cannot run doc tests**: `cargo test --doc` fails with "doc tests
+   are not supported for crate type `cdylib`". Doc-test coverage would have to
+   come from a `lib` target or integration tests. Pre-existing limitation, not
+   a regression.
 
 ---
+
+*Cycle 3 report appended: 2026-06-05 | Auditor: Hermes Agent (MiniMax-M3)*
+*Corrects the prematurely-issued "PRODUCTION-READY" verdict from the prior cycle.*
 
