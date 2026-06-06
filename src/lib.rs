@@ -1010,6 +1010,20 @@ mod tests {
         );
     }
 
+    /// Diagnostic test for the shrunk PP→SP data fix.
+    /// With the fix at verb_maps.rs:182 ("shrunk" → "shrank"), this should
+    /// transform "was shrunk by" → "shrank" in the active voice output.
+    /// Pre-fix the output would contain "shrunk" (self-map).
+    #[test]
+    fn test_transform_active_voice_shrunk_diagnostic() {
+        let result = transform_active_voice("The package was shrunk by the cold").unwrap();
+        eprintln!("transform_active_voice('The package was shrunk by the cold') = {result:?}");
+        assert!(
+            result.contains("shrank"),
+            "Expected 'shrank' in result (post-fix), got: {result}"
+        );
+    }
+
     #[test]
     fn test_expand_contractions() {
         assert_eq!(expand_contractions("don't"), "do not");

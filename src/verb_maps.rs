@@ -179,7 +179,7 @@ pub static PAST_PARTICIPLE_TO_SIMPLE_PAST: &[(&str, &str)] = &[
     ("shaken", "shook"),
     ("shone", "shone"),
     ("shot", "shot"),
-    ("shrunk", "shrunk"),
+    ("shrunk", "shrank"),
     ("slain", "slew"),
     ("slid", "slid"),
     ("slung", "slung"),
@@ -795,5 +795,38 @@ mod tests {
                 "Present map missing '{sp}' or wrong present"
             );
         }
+    }
+
+    /// Regression for the pre-existing data error at verb_maps.rs:182
+    /// (out-of-scope from the 2026-06-05 audit, fixed in 2026-06-06 follow-up).
+    ///
+    /// "shrunk" is the past participle of "shrink"; the simple past is
+    /// "shrank" (not "shrunk"). The original entry `("shrunk", "shrunk")`
+    /// was wrong — it caused `transform_active_voice` to leave "has shrunk"
+    /// as "has shrunk" instead of converting to active "shrank". Output
+    /// was still understandable ("has shrunk" stays unchanged) but
+    /// non-standard.
+    ///
+    /// After the fix, "shrunk" → "shrank" in PAST_PARTICIPLE_TO_SIMPLE_PAST,
+    /// so "The package has shrunk" normalises to "The package shrank".
+    #[test]
+    fn test_shrunk_pp_maps_to_shrank() {
+        let past_pp = verb_conjugation_map();
+        // past_pp is HashMap<&'static str, &'static str>, so .get(key) returns
+        // Option<&&'static str>. Take a reference to a bound &str so the
+        // right-hand Some(&...) unifies to Option<&&str>.
+        let shrank: &str = "shrank";
+        let shrunk: &str = "shrunk";
+        assert_eq!(
+            past_pp.get("shrunk"),
+            Some(&shrank),
+            "PP 'shrunk' must map to SP 'shrank' (not 'shrunk')"
+        );
+        // And the false-positive case: "shrunk" must NOT be its own SP.
+        assert_ne!(
+            past_pp.get("shrunk"),
+            Some(&shrunk),
+            "PP 'shrunk' must not be a no-change self-map"
+        );
     }
 }
