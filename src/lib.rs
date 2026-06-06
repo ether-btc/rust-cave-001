@@ -581,12 +581,27 @@ fn eliminate_connectives(text: &str) -> String {
     // match (including surrounding whitespace) when the guard fires, so
     // uppercase connectives like "AND" in "FOO AND BAR" are preserved verbatim
     // and the surrounding spaces survive intact.
+    //
+    // I-8 (Cycle 4 / 2026-06-05) fix: the acronym guard previously did
+    // `word.chars().all(|c| c.is_uppercase())` on the trimmed match. When
+    // the regex captured a trailing comma (the `,?` in the pattern), the
+    // trimmed word was "AND," — and `,` is not uppercase, so the guard did
+    // NOT fire and the uppercase connective was stripped:
+    //   "AND,"      → ""      (E43)
+    //   "AND,but"   → ""      (E38)
+    //   "FOO AND, BAR" → "FOO BAR"  (E47)
+    // Fix: check uppercase only on the ALPHABETIC portion of the word.
+    // This makes the guard robust against any trailing/embedded punctuation
+    // the `,?` or surrounding `\s*` might capture.
     let result = pattern
         .replace_all(text, |caps: &regex::Captures| {
             let full_match = caps.get(0).unwrap().as_str();
             let word = full_match.trim();
-            // Acronym protection: skip removal if word is fully uppercase (e.g., "AND" in "FOO AND BAR")
-            if word.chars().all(|c| c.is_uppercase()) {
+            // Acronym protection: skip removal if the alphabetic portion of
+            // the word is fully uppercase (e.g., "AND" in "FOO AND BAR" or
+            // "AND," in "FOO AND, BAR").
+            let alpha: String = word.chars().filter(|c| c.is_alphabetic()).collect();
+            if !alpha.is_empty() && alpha.chars().all(|c| c.is_uppercase()) {
                 full_match.to_string()
             } else {
                 " ".to_string()
@@ -1146,6 +1161,35 @@ mod tests {
         // separate function's job; eliminate_connectives shouldn't claim it.
         assert!(!r4.contains("  "), "Double space left behind: {r4:?}");
         assert_eq!(r4, "Index helps, uses space, is slow");
+    }
+
+    // I-8 regression: an uppercase connective followed by a comma (the
+    // regex's `,?` captures the comma as part of the match) must still
+    // trigger the acronym guard. Pre-fix: `word.chars().all(is_uppercase)`
+    // on "AND," failed because `,` is not uppercase, so the guard did NOT
+    // fire and "AND" was stripped.
+    #[test]
+    fn test_eliminate_connectives_acronym_with_trailing_comma() {
+        // E43: standalone "AND," must round-trip unchanged.
+        let r1 = eliminate_connectives("AND,");
+        assert_eq!(r1, "AND,", "uppercase AND, must survive (E43)");
+
+        // E38: "AND,but" — AND, preserved (acronym), but stripped (lowercase).
+        let r2 = eliminate_connectives("AND,but");
+        assert_eq!(r2, "AND,", "AND, survives, but is stripped (E38)");
+
+        // E47: "FOO AND, BAR" must preserve "AND," intact.
+        let r3 = eliminate_connectives("FOO AND, BAR");
+        assert_eq!(
+            r3, "FOO AND, BAR",
+            "uppercase AND, in mid-sentence must survive (E47)"
+        );
+
+        // Lowercase "and," must still be stripped (no acronym guard).
+        let r4 = eliminate_connectives("foo and, bar");
+        assert!(!r4.contains("and,"), "lowercase and, must be stripped");
+        assert!(!r4.contains("  "), "no double spaces: {r4:?}");
+        assert_eq!(r4, "foo bar");
     }
 
     #[test]
