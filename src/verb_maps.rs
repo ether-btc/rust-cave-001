@@ -13,10 +13,10 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Cached past-participle → simple-past map (avoids rebuilding 192-entry HashMap per sentence).
+/// Cached past-participle → simple-past map (avoids rebuilding 306-entry HashMap per sentence).
 static PP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
-/// Cached simple-past → present-base map (avoids rebuilding 220-entry HashMap per sentence).
+/// Cached simple-past → present-base map (avoids rebuilding 357-entry HashMap per sentence).
 static SP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
 /// Map of past participles to simple past forms for passive-to-active transformation.
@@ -26,7 +26,7 @@ static SP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new()
 /// - No-change verbs where both forms are identical but don't end in "ed" (e.g., "beat" → "beat")
 /// - Common -ed verbs where past participle == simple past (for lookup speed, avoiding regex fallback)
 ///
-/// Total: 192 entries
+/// Total: 306 entries
 pub static PAST_PARTICIPLE_TO_SIMPLE_PAST: &[(&str, &str)] = &[
     // ── Preserved from v0.2.1 (94 entries) ──────────────────────────────────
     ("thrown", "threw"),
@@ -452,7 +452,7 @@ pub static SIMPLE_PAST_TO_PRESENT: &[(&str, &str)] = &[
     ("lain", "lie"),
     ("risen", "rise"),
     ("shaken", "shake"),
-    ("shrunk", "shrink"),
+    ("shrank", "shrink"),
     ("sung", "sing"),
     ("sunk", "sink"),
     ("stolen", "steal"),
@@ -782,6 +782,7 @@ mod tests {
             ("taken", "took", "take"),
             ("driven", "drove", "drive"),
             ("forgotten", "forgot", "forget"),
+            ("shrunk", "shrank", "shrink"),
         ];
         for (pp, sp, pres) in &tests {
             assert_eq!(
@@ -827,6 +828,37 @@ mod tests {
             past_pp.get("shrunk"),
             Some(&shrunk),
             "PP 'shrunk' must not be a no-change self-map"
+        );
+    }
+
+    /// Regression for the pre-existing data error at verb_maps.rs:455
+    /// (parallel to the 2026-06-06 fix at line 182).
+    ///
+    /// SIMPLE_PAST_TO_PRESENT had `("shrunk", "shrink")` — but "shrunk"
+    /// is a past participle, not a simple past. The simple past is
+    /// "shrank". The original entry was producing the correct
+    /// present-tense output ("shrink") for the wrong reason (lookup
+    /// of a PP form) and silently masking the missing SP→PRES entry.
+    ///
+    /// After the fix, "shrank" → "shrink" in SIMPLE_PAST_TO_PRESENT,
+    /// and "shrunk" is no longer misclassified as a simple past.
+    #[test]
+    fn test_shrank_sp_maps_to_shrink() {
+        let past_pres = present_tense_map();
+        // past_pres is HashMap<&'static str, &'static str>, so .get(key) returns
+        // Option<&&'static str>. Take a reference to a bound &str so the
+        // right-hand Some(&...) unifies to Option<&&str>.
+        let shrank: &str = "shrank";
+        let shrink: &str = "shrink";
+        assert_eq!(
+            past_pres.get(shrank),
+            Some(&shrink),
+            "SP 'shrank' must map to present 'shrink'"
+        );
+        // "shrunk" must NOT be a key in the SP→PRES map (it's a PP, not a SP)
+        assert!(
+            past_pres.get("shrunk").is_none(),
+            "PP 'shrunk' must not be a key in SIMPLE_PAST_TO_PRESENT"
         );
     }
 }
