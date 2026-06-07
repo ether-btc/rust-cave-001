@@ -121,7 +121,7 @@ while [[ $# -gt 0 ]]; do
             echo "  --help,-h        show this message"
             exit 0
             ;;
-        *) error "Unknown option: $1" && exit 1 ;;
+        *) error "Unknown option: $1"; exit 1 ;;
     esac
     shift
 done

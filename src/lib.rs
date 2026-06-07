@@ -25,10 +25,11 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 #[pyfunction]
 /// Decompress data using LZ4 algorithm
 /// SEC-1 fix: validates input size to prevent decompression bombs.
-/// Uses lz4::block format (no built-in size header). The 4-byte check is a
-/// heuristic that reads the first 4 bytes of block data as a u32 and rejects
-/// values suggesting >256 MiB output. This is defense-in-depth; block format
-/// has internal size metadata that lz4's decompressor uses for allocation.
+/// The lz4 crate's `block::compress(..., prepend_size=true)` writes the
+/// uncompressed size as the first 4 bytes of the output (little-endian u32),
+/// which the matching `block::decompress(data, None)` reads back from src[0..4].
+/// The size prefix is at the START, not the end (the end is the last bytes
+/// of the literal/match stream).
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
     if data.len() < 4 {
@@ -36,9 +37,9 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
             "Input too short: LZ4 data must be at least 4 bytes".to_string(),
         ));
     }
-    // Read uncompressed size from LZ4 frame header (little-endian u32)
+    // Read uncompressed size from LZ4 block format (first 4 bytes, little-endian u32).
     let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    // Reject negative sizes (high bit set = interpreted as >2^31)
+    // Reject sizes > 256 MiB to prevent decompression bombs
     if uncompressed_size > 1 << 28 {
         return Err(exceptions::PyOSError::new_err(format!(
             "Decompression size limit exceeded: decompressed size would be {} bytes (max 256 MiB)",
@@ -561,23 +562,54 @@ fn eliminate_connectives(text: &str) -> String {
     use std::sync::OnceLock;
 
     static CONNECTIVE_PATTERN: OnceLock<Regex> = OnceLock::new();
+    static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = CONNECTIVE_PATTERN.get_or_init(|| {
         Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas)\b,?\s*").unwrap()
     });
+    let collapse_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
 
-    // Replace connectives with acronym guard
-    pattern
+    // I-7 (Cycle 2) fix: the non-guard branch was returning "" (removing the
+    // connective AND its surrounding spaces), which CAUSED word merging:
+    //   "Use index because query slow" → "Use indexquery slow"
+    //   "However the system is slow"   → "system slow"  (lost word "However")
+    //   "query runs fast but uses mem" → "query runs fastuses memory"
+    // The function's stated purpose is to PREVENT word merging, so the
+    // non-guard path must preserve word boundaries. Fix: return a single
+    // space, then collapse runs of whitespace via SPACE_PATTERN.
+    //
+    // BUG-C1 fix (still in place): the acronym guard returns the FULL original
+    // match (including surrounding whitespace) when the guard fires, so
+    // uppercase connectives like "AND" in "FOO AND BAR" are preserved verbatim
+    // and the surrounding spaces survive intact.
+    //
+    // I-8 (Cycle 4 / 2026-06-05) fix: the acronym guard previously did
+    // `word.chars().all(|c| c.is_uppercase())` on the trimmed match. When
+    // the regex captured a trailing comma (the `,?` in the pattern), the
+    // trimmed word was "AND," — and `,` is not uppercase, so the guard did
+    // NOT fire and the uppercase connective was stripped:
+    //   "AND,"      → ""      (E43)
+    //   "AND,but"   → ""      (E38)
+    //   "FOO AND, BAR" → "FOO BAR"  (E47)
+    // Fix: check uppercase only on the ALPHABETIC portion of the word.
+    // This makes the guard robust against any trailing/embedded punctuation
+    // the `,?` or surrounding `\s*` might capture.
+    let result = pattern
         .replace_all(text, |caps: &regex::Captures| {
-            let word = caps.get(0).unwrap().as_str().trim();
-            // Acronym protection: skip removal if word is fully uppercase (e.g., "AND" in "ANDROID")
-            if word.chars().all(|c| c.is_uppercase()) {
-                word.to_string()
+            let full_match = caps.get(0).unwrap().as_str();
+            let word = full_match.trim();
+            // Acronym protection: skip removal if the alphabetic portion of
+            // the word is fully uppercase (e.g., "AND" in "FOO AND BAR" or
+            // "AND," in "FOO AND, BAR").
+            let alpha: String = word.chars().filter(|c| c.is_alphabetic()).collect();
+            if !alpha.is_empty() && alpha.chars().all(|c| c.is_uppercase()) {
+                full_match.to_string()
             } else {
-                String::new()
+                " ".to_string()
             }
         })
-        .trim()
-        .to_string()
+        .to_string();
+
+    collapse_spaces.replace_all(&result, " ").trim().to_string()
 }
 
 // Enforce word limit (2-5 words)
@@ -931,6 +963,17 @@ mod tests {
         // Lowercase connectives still stripped
         let r3 = eliminate_connectives("Use index because query slow");
         assert!(!r3.contains("because"));
+
+        // BUG-C1 regression: uppercase connective "AND" (surrounded by spaces)
+        // must NOT be stripped AND must NOT collapse the surrounding whitespace.
+        // Previous bug: the acronym guard called `.trim()` on the matched span
+        // and returned the trimmed word, losing the leading/trailing spaces
+        // and producing "FOOANDBAR" instead of preserving "FOO AND BAR".
+        let r4 = eliminate_connectives("FOO AND BAR");
+        assert_eq!(r4, "FOO AND BAR", "uppercase AND must preserve spacing");
+
+        let r5 = eliminate_connectives("XOR BUT Y"); // mix of upper & upper
+        assert_eq!(r5, "XOR BUT Y", "uppercase BUT must preserve spacing");
     }
 
     #[test]
@@ -1084,6 +1127,83 @@ mod tests {
         assert!(!eliminate_connectives("Index helps but uses space").contains("but"));
         // No word merging
         assert!(!eliminate_connectives("raining therefore we").contains("rainingtherefore"));
+    }
+
+    /// I-7 (Cycle 2) regression: removing a lowercase connective must NOT
+    /// cause word merging. The function's stated purpose is to PREVENT word
+    /// merging. Pre-fix behaviour returned "" for the non-guard branch,
+    /// which also stripped the leading/trailing spaces:
+    ///   "Use index because query slow" → "Use indexquery slow"   (BUG)
+    ///   "However the system is slow"   → "system slow"            (BUG)
+    ///   "query runs fast but uses mem" → "query runs fastuses memory"  (BUG)
+    /// Post-fix: a single space is substituted, then runs of whitespace
+    /// are collapsed. Word boundaries are preserved.
+    #[test]
+    fn test_eliminate_connectives_no_word_merging() {
+        // Original bug case: "because" removal must leave a space between
+        // "index" and "query".
+        let r1 = eliminate_connectives("Use index because query slow");
+        assert!(
+            !r1.contains("indexquery"),
+            "Word merging on 'because' removal: {r1:?}"
+        );
+        assert_eq!(r1, "Use index query slow");
+
+        // "However" at the start: leading space before the first word must
+        // not be eaten entirely.
+        let r2 = eliminate_connectives("However the system is slow");
+        assert!(
+            !r2.starts_with("system"),
+            "Lost the first word to leading-space stripping: {r2:?}"
+        );
+        assert_eq!(r2, "the system is slow");
+
+        // Mid-sentence "but" must not glue "fast" and "uses".
+        let r3 = eliminate_connectives("query runs fast but uses memory");
+        assert!(
+            !r3.contains("fastuses"),
+            "Word merging on 'but' removal: {r3:?}"
+        );
+        assert_eq!(r3, "query runs fast uses memory");
+
+        // Multiple connectives, with a trailing comma.
+        let r4 = eliminate_connectives("Index helps, but uses space, therefore is slow");
+        assert!(!r4.contains("but"));
+        assert!(!r4.contains("therefore"));
+        // Note: the regex `,?` only strips a comma that comes RIGHT AFTER the
+        // connective (so ", but" → " "), not standalone commas. That's a
+        // separate function's job; eliminate_connectives shouldn't claim it.
+        assert!(!r4.contains("  "), "Double space left behind: {r4:?}");
+        assert_eq!(r4, "Index helps, uses space, is slow");
+    }
+
+    // I-8 regression: an uppercase connective followed by a comma (the
+    // regex's `,?` captures the comma as part of the match) must still
+    // trigger the acronym guard. Pre-fix: `word.chars().all(is_uppercase)`
+    // on "AND," failed because `,` is not uppercase, so the guard did NOT
+    // fire and "AND" was stripped.
+    #[test]
+    fn test_eliminate_connectives_acronym_with_trailing_comma() {
+        // E43: standalone "AND," must round-trip unchanged.
+        let r1 = eliminate_connectives("AND,");
+        assert_eq!(r1, "AND,", "uppercase AND, must survive (E43)");
+
+        // E38: "AND,but" — AND, preserved (acronym), but stripped (lowercase).
+        let r2 = eliminate_connectives("AND,but");
+        assert_eq!(r2, "AND,", "AND, survives, but is stripped (E38)");
+
+        // E47: "FOO AND, BAR" must preserve "AND," intact.
+        let r3 = eliminate_connectives("FOO AND, BAR");
+        assert_eq!(
+            r3, "FOO AND, BAR",
+            "uppercase AND, in mid-sentence must survive (E47)"
+        );
+
+        // Lowercase "and," must still be stripped (no acronym guard).
+        let r4 = eliminate_connectives("foo and, bar");
+        assert!(!r4.contains("and,"), "lowercase and, must be stripped");
+        assert!(!r4.contains("  "), "no double spaces: {r4:?}");
+        assert_eq!(r4, "foo bar");
     }
 
     #[test]

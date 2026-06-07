@@ -20,7 +20,6 @@ pub enum CompressionError {
 
 impl CompressionError {
     /// Convert to a PyErr (for Python-callable functions)
-    #[allow(dead_code)]
     pub fn into_pyerr(self) -> pyo3::PyErr {
         pyo3::exceptions::PyValueError::new_err(self.to_string())
     }
