@@ -947,6 +947,16 @@ class TestConnectives:
         result = compress("It is sunny whereas it is cold")
         assert "whereas" not in result.lower()
 
+    def test_then_removed(self):
+        from rust_cave_001 import compress
+        result = compress("First check logs then fix the bug")
+        assert "then" not in result.lower()
+
+    def test_thus_removed(self):
+        from rust_cave_001 import compress
+        result = compress("Run migration thus verify results")
+        assert "thus" not in result.lower()
+
     def test_existing_connectives_still_removed(self):
         from rust_cave_001 import compress
         assert "because" not in compress("Alice went home because she was tired").lower()
