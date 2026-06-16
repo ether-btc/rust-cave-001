@@ -55,7 +55,7 @@ jobs:
           # Install dev headers (maturin auto-detects Python from PATH)
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3-dev || true
-          pip install --quiet maturin pytest
+          pip install --quiet maturin pytest ruff
 
       - name: Check Rust formatting
         run: cargo fmt --check
@@ -74,6 +74,9 @@ jobs:
 
       - name: Run Python tests
         run: pytest tests/ -v
+
+      - name: Run ruff lint
+        run: ruff check .
 
   audit:
     runs-on: ubuntu-latest

@@ -15,8 +15,6 @@ import sys
 import os
 import time
 import statistics
-import json
-import textwrap
 
 # Ensure rust_cave_001 is importable
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
@@ -140,7 +138,7 @@ def benchmark_nlp_compression():
         token_saved = orig_tokens - comp_tokens
         token_pct = (token_saved / orig_tokens * 100) if orig_tokens else 0
         word_saved = orig_words - comp_words
-        word_pct = (word_saved / orig_words * 100) if orig_words else 0
+        _ = (word_saved / orig_words * 100) if orig_words else 0  # word_pct (unused but computed for symmetry)
 
         # Output
         time_str = fmt_ms(mean_ms)
@@ -276,7 +274,7 @@ def benchmark_combined_pipeline():
         steps = [
             ("Original text", orig_bytes, f"{orig_tokens} tokens"),
             ("After compress()", len(text_bytes), f"{estimate_tokens(compressed_text)} tokens"),
-            ("After LZ4", len(binary), f"compressed"),
+            ("After LZ4", len(binary), "compressed"),
         ]
 
         nlp_ratio = orig_bytes / len(text_bytes) if len(text_bytes) else 0
@@ -337,7 +335,7 @@ def run_sanity_checks():
         print(f"  ✓ LZ4 round-trip is lossless ({len(data)}B)")
     else:
         checks_failed += 1
-        print(f"  ✗ LZ4 round-trip lost data!")
+        print("  ✗ LZ4 round-trip lost data!")
 
     # 4. Compression stats returns valid dict
     stats = get_stats(compressed, data)
@@ -353,7 +351,7 @@ def run_sanity_checks():
     # 5. estimate_tokens returns correct counts
     assert estimate_tokens("hello world") == 2
     checks_passed += 1
-    print(f"  ✓ estimate_tokens('hello world') = 2")
+    print("  ✓ estimate_tokens('hello world') = 2")
 
     print()
     print(f"  Results: {checks_passed} passed, {checks_failed} failed")
@@ -374,7 +372,7 @@ def main():
     nlp_results = benchmark_nlp_compression()
     lz4_results = benchmark_lz4_compression()
     benchmark_combined_pipeline()
-    strat_results = benchmark_strategies()
+    strat_results = benchmark_strategies()  # noqa: F841 (used later in function)
     all_ok = run_sanity_checks()
 
     # Summary
@@ -503,9 +501,9 @@ def benchmark_strategies():
     print(f"  Average delta: {avg_delta:+.1f}%")
     print(f"  Regressions:   {regressions}/{len(strat_results)}")
     if regressions > 0:
-        print(f"  ⚠  Need to tune classifier heuristics for underperforming text types")
+        print("  ⚠  Need to tune classifier heuristics for underperforming text types")
     else:
-        print(f"  ✓  All strategies at least neutral vs full pipeline")
+        print("  ✓  All strategies at least neutral vs full pipeline")
     print()
 
     return strat_results

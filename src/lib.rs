@@ -557,14 +557,14 @@ fn remove_intensifiers(text: &str) -> String {
 
 // Remove connectives (coordinating/subordinating conjunctions and transition words)
 // Replaces with space to prevent word merging (case-insensitive)
-// Covers: because, however, therefore, but, and, or, although, since, unless, while, whereas
+// Covers: because, however, therefore, but, and, or, although, since, unless, while, whereas, then, thus
 fn eliminate_connectives(text: &str) -> String {
     use std::sync::OnceLock;
 
     static CONNECTIVE_PATTERN: OnceLock<Regex> = OnceLock::new();
     static SPACE_PATTERN: OnceLock<Regex> = OnceLock::new();
     let pattern = CONNECTIVE_PATTERN.get_or_init(|| {
-        Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas)\b,?\s*").unwrap()
+        Regex::new(r"(?i)\s*\b(because|however|therefore|but|and|or|although|since|unless|while|whereas|then|thus)\b,?\s*").unwrap()
     });
     let collapse_spaces = SPACE_PATTERN.get_or_init(|| Regex::new(r"\s+").unwrap());
 
