@@ -13,6 +13,7 @@ mod error;
 use std::collections::HashSet;
 use std::sync::OnceLock;
 #[pyfunction]
+#[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm.
 ///
 /// # Errors
@@ -93,14 +94,14 @@ pub fn estimate_tokens(text: &str) -> PyResult<usize> {
 ///
 /// Returns `PyValueError` if the Python dict conversion fails.
 #[allow(clippy::cast_precision_loss)] // byte sizes fit in 52-bit mantissa up to ~9 PB
-pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<PyObject> {
+pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<Py<PyAny>> {
     let original_size = original.len() as f64;
     let compressed_size = compressed.len() as f64;
     let ratio = original_size / compressed_size;
     let saved = original_size - compressed_size;
     let percentage = (saved / original_size) * 100.0;
 
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("original_size", original_size)?;
         dict.set_item("compressed_size", compressed_size)?;
