@@ -1,137 +1,170 @@
 # CONTINUE HERE — rust-cave-001
 
-## v0.4.4 — AUDIT FIXES PENDING MERGE (2026-06-05)
+> **Last updated:** 2026-06-18
+> **Local HEAD:** master @ `10d960d` (v0.4.3 base)
+> **Active branch:** `v0.5.0-clippy-pedantic` @ `0e41988` (PR #13 open)
+> **Test count:** 38 Rust + 129 Python (all green, fresh wheel)
 
-| Item | Value |
-|------|-------|
-| Branch | `audit-2026-06-05` (3 commits ahead of master) |
-| PR | [#10](https://github.com/ether-btc/rust-cave-001/pull/10) (open, awaiting review) |
-| Base | master@1084aa6 (v0.4.3) |
-| Local HEAD | `64d0755` (docs) |
-| Local commits | `e86518e` (Cycle 1), `4512531` (I-7), `64d0755` (docs) |
+---
 
-**Audit verdict:** PRODUCTION-READY. 5 issues found (4 fixed, 1 false positive reverted).
-4 new regression tests added. 34/34 Rust + 127/127 Python tests pass; clippy/fmt/ruff/mypy clean.
+## Where We Are (2026-06-18)
 
-## v0.4.3 — RELEASED (2026-06-05)
+The 2026-06-05 CONTINUE_HERE was significantly stale. Here's the actual state:
 
-| Item | Value |
-|------|-------|
-| HEAD | `45f7486` (docs: add v0.4.3 to CHANGELOG) |
-| Tag | [v0.4.3](https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.3) |
-| PyPI | `pip install rust-cave-001==0.4.3` (already on PyPI from prior upload) |
-| GitHub release | https://github.com/ether-btc/rust-cave-001/releases/tag/v0.4.3 |
-| Rust tests | 28 PASS ✅ |
-| Python tests | 127 PASS ✅ |
-| Wheel | `rust_cave_001-0.4.3-cp310-abi3-manylinux_2_34_aarch64.whl` (900 KB) |
-| Token reduction | 50% on reference text (10 → 5 tokens) |
+### Released
 
-## What Was Done This Session (2026-06-05, session 2 — 3-cycle audit)
+| Version | Date | Notes |
+|---------|------|-------|
+| v0.4.0 | 2026-05-18 | Initial 9-rule pipeline + `OnceLock` verb-map caching (PR #6) |
+| v0.4.1 | 2026-05-18 | Plural (`were`) + past-perfect (`had been`) passive voice. BUG-2 pronouns. SEC-1 decompress size limits. |
+| v0.4.2 | 2026-05-18 | BUG-1 acronym guard (THE, ANDROID, XOR preserved). |
+| v0.4.3 | 2026-06-05 | PyPI re-upload of v0.4.2; 3-cycle audit merged via PRs #10/#11/#12. |
 
-1. **Branched `audit-2026-06-05`** from master@1084aa6
-2. **Cycle 1:** 5 issues found in initial review
-   - I-2 (HIGH) fixed: eliminate_connectives acronym guard word-merge
-   - I-3 (MEDIUM) fixed: 34 PP entries removed from SP→PRES map
-   - I-4 (LOW) fixed: uninstall.sh && exit 1 short-circuit
-   - I-6 (LOW) fixed: bogus #[allow(dead_code)] on into_pyerr
-   - I-1 (HIGH claimed) REVERTED: false positive about LZ4 size location
-3. **Cycle 2:** 1 new issue found (I-7) — eliminate_connectives non-guard branch
-   caused word merging. Fixed: return " " + collapse_spaces.
-4. **Cycle 3:** All validation green (34 Rust + 127 Python tests, clippy/fmt/ruff/mypy)
-5. **4 new regression tests** added
-6. **AUDIT.md** updated (280 → 370 lines)
-7. **Branch pushed** to origin: `git push -u origin audit-2026-06-05`
-8. **PR #10 opened** via `gh pr create` with full description
-9. **Wiki updated**: entity, session-summary, continue ref, log entry (commit `7d39c6a`)
-10. **Aeon entry filed**: `ether-btc/rust-cave-001#10` (pending_maintainer_review)
+### Merged PRs (since v0.4.3 release)
 
-## What Was Done This Session (2026-06-05, session 1 — v0.4.3 release)
+| PR | Title | What it fixed |
+|---|---|---|
+| #9 | 3-cycle audit completion documentation | 2026-05-29 audit report |
+| #10 | audit: 3-cycle code audit | I-2, I-3, I-4, I-6, I-7, I-8 fixed; I-1 false-positive reverted |
+| #11 | fix(data): PP→SP "shrunk" → "shrank" | Data-level data fix in `verb_maps.rs:182` and `:455` |
+| #12 | chore: gitignore uv.lock | Library lockfile should not be committed |
+| #13 | style(clippy): drive pedantic warning count to zero (L-1) | **OPEN** — current branch |
 
-1. **Synced local master with origin/master** — local was 1 commit behind
-2. **Built v0.4.3 wheel** with `maturin build --release -o dist/`
-3. **Smoke-tested locally** — 127/127 Python tests pass in fresh venv
-4. **Discovered v0.4.3 was already on PyPI** (uploaded by CI/another process)
-5. **Added CHANGELOG entry** for v0.4.3 in commit `45f7486`
-6. **Created annotated tag** `v0.4.3` and pushed to origin
-7. **Created GitHub release** with full release notes
-8. **Updated wiki** to reflect v0.4.3 state
-9. **Filed aeon entry** for the release
+### v0.5.0 Backlog — Status
 
-## Audit Status (3-cycle audit, 2026-06-05, branch `audit-2026-06-05`)
+| ID | Item | Status | Notes |
+|---|---|---|---|
+| L-1 | 88 clippy pedantic warnings | ✅ **DONE** (PR #13) | Was 110/81, now 0 |
+| L-2 | README says "7 rules" → "11 rules" | ✅ Non-issue | README never claimed "7 rules"; grep returned 0 matches |
+| L-4 | Missing connectives `then`, `thus` | ✅ **DONE** (370cda8) | Tests pass on fresh wheel |
+| L-6 | Add `ruff` to CI | ✅ **DONE** (370cda8) | `.github/workflows/ci.yml` runs `ruff check .` |
 
-| ID | Sev | Status | Notes |
-|----|-----|--------|-------|
-| I-1 | HIGH (claimed) | ❌ REVERTED | False positive — LZ4 size is at FIRST 4 bytes, not LAST |
-| I-2 | HIGH | ✅ FIXED | eliminate_connectives acronym guard returned trimmed word, losing spaces |
-| I-3 | MEDIUM | ✅ FIXED | 34 PP entries removed from SIMPLE_PAST_TO_PRESENT |
-| I-4 | LOW | ✅ FIXED | uninstall.sh `&& exit 1` short-circuit |
-| I-6 | LOW | ✅ FIXED | bogus #[allow(dead_code)] on into_pyerr |
-| I-7 | MEDIUM | ✅ FIXED (Cycle 2) | eliminate_connectives non-guard branch word-merge |
+### Test Status (post-L-1)
 
-See AUDIT.md for the full report. PR #10 has the complete description.
+```
+cargo test --lib                            → 38 passed
+pytest tests/                               → 129 passed
+cargo clippy --all-targets -- -D warnings   → No issues found
+cargo clippy --all-targets -- -W pedantic   → 0 warnings
+cargo fmt --all -- --check                  → clean
+```
 
-## v0.5.0 Backlog (4 active items)
+### Stale-Wheel Footgun (memory)
 
-| ID | Item | Effort | Notes |
-|----|------|--------|-------|
-| **L-1** | 88 clippy pedantic warnings | Medium | Deferred from audit |
-| **L-2** | README says "7 rules" — should say 11 | Small | Easy docs fix |
-| **L-4** | Missing connectives `then`, `thus` | Small | Add to regex + tests |
-| **L-6** | Add `ruff` to CI | Small | Quality infra |
+`pip install --force-reinstall dist/*.whl` does **not** always replace the
+installed `.so` (the wheel's `.so` MD5 differs from the installed `.so`
+MD5 after a "successful" reinstall). When a test fails unexpectedly on
+behaviour that the source already covers, verify with
+`md5sum dist/*.whl …/site-packages/…/rust_cave_001.abi3.so`. If they
+differ, force-replace:
 
-Plus deferred: I-1/I-2 (upstream SPEC rules 5/9 gaps), crates.io publish (needs token).
+```bash
+unzip -p dist/rust_cave_001-*-linux_aarch64.whl \
+  rust_cave_001/rust_cave_001.abi3.so \
+  > …/site-packages/rust_cave_001/rust_cave_001.abi3.so
+```
+
+Hit this on 2026-06-18 — L-4 (then/thus) tests appeared to fail, but
+the code was correct; the `.so` was from June 6.
+
+---
+
+## Next Steps (in order)
+
+### 1. Multi-cycle audit on the L-1 delta (PR #13)
+
+Before merging, run the standard 3-cycle audit (ponytail → correctness →
+integration) on the `0e41988` commit. The L-1 changes are mostly
+formatting and doc additions, but:
+- `recommended_strategy()` had a refactor (extracted `FULL_PIPELINE` +
+  merged Technical/Mixed arms) — needs verification that the returned
+  slices are still valid and that `classify_text()` callers see no
+  behaviour change.
+- The module-level `#[allow(cast_*)]` in `classifier.rs` covers the
+  `as f64` / `as usize` casts in `classify()` and the helper
+  functions — verify no silent precision loss surfaces in the
+  classifier tests.
+
+### 2. v0.5.0 release
+
+Once PR #13 merges:
+
+1. Bump version in `Cargo.toml` and `pyproject.toml` (or wherever the
+   version lives — check `maturin` build config).
+2. `cargo build --release` + `maturin build --release --auditwheel skip`.
+3. Smoke-test in a fresh venv.
+4. `git tag -a v0.5.0` + push tag.
+5. PyPI upload: the existing CI workflow already triggers on tag push
+   (see `.github/workflows/ci.yml` PyPI publish job). Verify it fires.
+6. GitHub release: `gh release create v0.5.0` with release notes
+   derived from CHANGELOG.
+
+### 3. crates.io publish (deferred — needs token)
+
+The `CONTINUE_HERE` from 2026-06-05 noted "crates.io publish (needs
+token)". No `CRATES_IO_TOKEN` is in the env. If the user wants this,
+add the token to `~/.cargo/config.toml` or use `cargo login`.
+
+### 4. Strategic direction: self-learning framework
+
+Per `~/wiki/concepts/self-learning-caveman-framework.md`. The
+`classifier.rs` module is the first component (text-type detection +
+strategy selection). Next pieces:
+- Benchmark oracle: run compress() on a labelled corpus, log input
+  → output → effectiveness metrics
+- EffectivenessTracker: per-rule stats (firing count, compression
+  ratio, semantic-preservation score)
+- Adaptive policy: auto-tune strategy selection based on oracle data
+
+This is a multi-session, multi-PR project. Pick it up when the
+infrastructure backlog is clear.
+
+---
 
 ## Key Files
 
-| File | Path |
-|------|------|
-| Main lib | `src/lib.rs` (43 KB) |
-| Classifier | `src/classifier.rs` (14 KB) |
-| Error types | `src/error.rs` |
-| Verb maps | `src/verb_maps.rs` (23 KB) |
-| Build script | `build.rs` |
-| Python tests | `tests/test_rust_cave_001.py` |
-| CI workflow | `.github/workflows/ci.yml` |
-| CHANGELOG | `CHANGELOG.md` |
+| File | Path | Notes |
+|------|------|-------|
+| Main lib | `src/lib.rs` (~52 KB now) | 9-rule pipeline + LZ4 |
+| Classifier | `src/classifier.rs` (~14 KB) | Text-type heuristic + strategy selector |
+| Error types | `src/error.rs` | `CompressionError` enum + `into_pyerr` |
+| Verb maps | `src/verb_maps.rs` (~27 KB) | 306 PP + 357 SP→PRES (v0.4.3 base) |
+| Build script | `build.rs` | Dynamic `python3-config` detection |
+| Python tests | `tests/test_rust_cave_001.py` | 129 tests |
+| CI workflow | `.github/workflows/ci.yml` | cargo + pytest + ruff |
+| CHANGELOG | `CHANGELOG.md` | Update for v0.5.0 entry |
+| AUDIT | `AUDIT.md` | 3-cycle audit log (last update 2026-06-05) |
 
-## Next Session
+---
 
-The natural next direction is **v0.5.0 backlog work** — L-2, L-4, and L-6 are
-all small and self-contained, can be done in one sitting. After those, the
-strategic direction is the **self-learning framework** per
-`~/wiki/concepts/self-learning-caveman-framework.md`.
-
-## Verification Commands
+## Next Session Commands
 
 ```bash
-# Build wheel
+# Pickup marker: "Resume rust-cave-001 v0.5.0 work"
 cd ~/projects/rust-cave-001
-export PATH="$HOME/.cargo/bin:$PATH"
-maturin build --release -o dist/ --interpreter .venv/bin/python
+git checkout v0.5.0-clippy-pedantic
 
-# Install + test
-uv venv /tmp/rc-test && source /tmp/rc-test/bin/activate
-uv pip install /tmp/rc-test/bin/python dist/rust_cave_001-*.whl pytest
-/tmp/rc-test/bin/python -m pytest tests/ -q
+# Verify state
+git status
+git log --oneline -5
+gh pr view 13
 
-# Tag + push
-git tag -a vX.Y.Z -m "..." HEAD
-git push origin vX.Y.Z
-gh release create vX.Y.Z --repo ether-btc/rust-cave-001 --title "..." --notes "..."
+# Run the 3-cycle audit on the L-1 delta
+# (use the multi-cycle-code-audit skill — load it from ~/.hermes/skills)
+
+# If audit is clean, merge
+gh pr merge 13 --squash
+git checkout master
+git pull
 ```
+
+---
 
 ## Reference Links
 
 - **Repo:** https://github.com/ether-btc/rust-cave-001
+- **PR #13:** https://github.com/ether-btc/rust-cave-001/pull/13
 - **PyPI:** https://pypi.org/project/rust-cave-001/
 - **Wiki entity:** ~/wiki/entities/rust-cave-001.md
 - **Self-learning framework concept:** ~/wiki/concepts/self-learning-caveman-framework.md
-- **Aeon entry:** `ether-btc/rust-cave-001#v043` (filed 2026-06-05)
-
-## CI History (most recent)
-
-| Run | SHA | Result | Notes |
-|-----|-----|--------|-------|
-| 26050355755 | f0b9d5e | ✅ | docs: log BUG-2 and SEC-1 |
-| 26050043345 | 00f2202 | ✅ | BUG-2 + SEC-1 fixes |
-| 26049619756 | be8f3d6 | ✅ | docs: update CONTINUE_HERE |
+- **Multi-cycle audit skill:** `~/.hermes/skills/devops/multi-cycle-code-audit/`
