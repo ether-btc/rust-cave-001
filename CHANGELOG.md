@@ -1,3 +1,27 @@
+## [0.5.0] - 2026-06-18
+
+### Fixed
+- **RUSTSEC-2026-0176 + RUSTSEC-2026-0177**: Upgraded pyo3 from 0.24.2 to 0.29 to fix two security advisories published 2026-06-11:
+  - RUSTSEC-2026-0176: Out-of-bounds read in PyList/PyTuple iterator nth/nth_back
+  - RUSTSEC-2026-0177: Missing Sync bound on PyCFunction::new_closure closures
+  - CI cargo-audit job had been failing since 2026-06-16 due to these advisories
+
+### Changed
+- **pyo3 0.29 API migration**:
+  - Python::with_gil -> Python::attach (semantic equivalent, renamed in 0.29)
+  - PyObject -> Py<PyAny> (old type alias removed in 0.29; explicit generic required)
+
+### Fixed
+- **Regression: my_compress signature attribute** - Restored #[pyo3(signature = (data, level = 9))] which was accidentally dropped in commit 0e41988 when rewriting doc comments. Without this attribute, pyo3 treats the level parameter as a required positional argument instead of a keyword argument with default, causing 11 Python tests to fail.
+
+### Lint/Quality
+- **Clippy pedantic warnings driven to zero** - Fixed 88 clippy::pedantic warnings across 7 files (59 auto-fixed, 29 manual).
+
+### Validation
+- cargo clippy --all-targets -- -D warnings -> clean
+- cargo test --lib -> 38 passed
+- pytest tests/ -> 129 passed
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
