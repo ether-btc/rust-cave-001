@@ -14,7 +14,12 @@ use std::collections::HashSet;
 use std::sync::OnceLock;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
-/// Compress data using LZ4 algorithm
+/// Compress data using LZ4 algorithm.
+///
+/// # Errors
+///
+/// Returns `PyOSError` if the LZ4 compressor fails to process the input
+/// (e.g. allocation failure, input larger than LZ4's max block size).
 pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
     let mode = CompressionMode::HIGHCOMPRESSION(level);
     let compressed = block::compress(data, Some(mode), true)
@@ -23,13 +28,20 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 }
 
 #[pyfunction]
-/// Decompress data using LZ4 algorithm
+/// Decompress data using LZ4 algorithm.
 /// SEC-1 fix: validates input size to prevent decompression bombs.
 /// The lz4 crate's `block::compress(..., prepend_size=true)` writes the
 /// uncompressed size as the first 4 bytes of the output (little-endian u32),
 /// which the matching `block::decompress(data, None)` reads back from src[0..4].
 /// The size prefix is at the START, not the end (the end is the last bytes
 /// of the literal/match stream).
+///
+/// # Errors
+///
+/// Returns `PyOSError` if:
+/// - Input is shorter than 4 bytes (missing LZ4 size prefix)
+/// - The declared uncompressed size exceeds the 256 MiB bomb-prevention cap
+/// - The LZ4 decompressor fails (corrupt input, mismatched size)
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
     if data.len() < 4 {
@@ -42,8 +54,7 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Reject sizes > 256 MiB to prevent decompression bombs
     if uncompressed_size > 1 << 28 {
         return Err(exceptions::PyOSError::new_err(format!(
-            "Decompression size limit exceeded: decompressed size would be {} bytes (max 256 MiB)",
-            uncompressed_size
+            "Decompression size limit exceeded: decompressed size would be {uncompressed_size} bytes (max 256 MiB)"
         )));
     }
     let decompressed =
@@ -52,8 +63,19 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
 }
 
 #[pyfunction]
-/// Estimate token count using regex pattern
-/// Cached via OnceLock to avoid per-call regex compilation.
+/// Estimate token count using regex pattern.
+/// Cached via `OnceLock` to avoid per-call regex compilation.
+///
+/// # Errors
+///
+/// Currently infallible — the underlying `re.find_iter` cannot fail.
+/// The `Result` return is kept for forward compatibility with future
+/// error paths (e.g. metrics collection).
+///
+/// # Panics
+///
+/// Panics if the token regex fails to compile. The pattern `\b\w+\b`
+/// is a constant and the panic should never occur in practice.
 pub fn estimate_tokens(text: &str) -> PyResult<usize> {
     static TOKEN_PATTERN: OnceLock<Regex> = OnceLock::new();
     let re =
@@ -63,15 +85,23 @@ pub fn estimate_tokens(text: &str) -> PyResult<usize> {
 }
 
 #[pyfunction]
-/// Get compression statistics
-pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<PyObject> {
+/// Get compression statistics.
+///
+/// Returns a dict with `original_size`, `compressed_size`, `ratio`,
+/// `saved_bytes`, `saved_percent`.
+///
+/// # Errors
+///
+/// Returns `PyValueError` if the Python dict conversion fails.
+#[allow(clippy::cast_precision_loss)] // byte sizes fit in 52-bit mantissa up to ~9 PB
+pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<Py<PyAny>> {
     let original_size = original.len() as f64;
     let compressed_size = compressed.len() as f64;
     let ratio = original_size / compressed_size;
     let saved = original_size - compressed_size;
     let percentage = (saved / original_size) * 100.0;
 
-    Python::with_gil(|py| {
+    Python::attach(|py| {
         let dict = pyo3::types::PyDict::new(py);
         dict.set_item("original_size", original_size)?;
         dict.set_item("compressed_size", compressed_size)?;
@@ -84,13 +114,29 @@ pub fn get_stats(compressed: &[u8], original: &[u8]) -> PyResult<PyObject> {
 
 #[pyfunction]
 #[pyo3(signature = (serialized_data, level = 9))]
-/// Compress already-serialized data
+/// Compress already-serialized data.
+///
+/// Thin wrapper over [`my_compress`] for naming symmetry with
+/// [`deserialize_compressed`].
+///
+/// # Errors
+///
+/// Propagates any `PyOSError` from [`my_compress`] (allocation failure,
+/// input too large for LZ4 block format).
 pub fn serialize_compressed(serialized_data: &[u8], level: i32) -> PyResult<Vec<u8>> {
     my_compress(serialized_data, level)
 }
 
 #[pyfunction]
-/// Decompress data back to serialized form
+/// Decompress data back to serialized form.
+///
+/// Thin wrapper over [`decompress`] for naming symmetry with
+/// [`serialize_compressed`].
+///
+/// # Errors
+///
+/// Propagates any `PyOSError` from [`decompress`] (input < 4 bytes,
+/// declared size > 256 MiB, LZ4 decompression failure).
 pub fn deserialize_compressed(data: &[u8]) -> PyResult<Vec<u8>> {
     decompress(data)
 }
@@ -100,6 +146,16 @@ pub fn deserialize_compressed(data: &[u8]) -> PyResult<Vec<u8>> {
 ///   - "The X was V-ed by Z"   → "Z V-ed the X"     (singular, simple past)
 ///   - "The X were V-ed by Z"  → "Z V-ed the X"     (plural, simple past)
 ///   - "The X had been V-ed by Z" → "Z had V-ed the X" (past perfect)
+///
+/// `unnecessary_wraps` allowed: callers expect `PyResult` for uniform
+/// error propagation via `?`, even though the regex patterns are
+/// compile-time constants that cannot fail at runtime.
+/// `items_after_statements` allowed: grouping each `static` regex with
+/// its `get_or_init` call keeps the three patterns visually colocated
+/// (Pattern 1, Pattern 2, Pattern 3), which is more readable than
+/// collecting all statics at the function top.
+#[pyfunction]
+#[allow(clippy::unnecessary_wraps, clippy::items_after_statements)]
 fn transform_active_voice(text: &str) -> PyResult<String> {
     use std::sync::OnceLock;
 
@@ -110,16 +166,16 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
 
     // Helper: look up past-participle → simple past, with regular-verb fallback
     let resolve_verb = |verb_pp: &str| -> String {
-        verb_conjugations
-            .get(verb_pp)
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| {
+        verb_conjugations.get(verb_pp).map_or_else(
+            || {
                 if verb_pp.ends_with("ed") && verb_pp.len() > 2 {
                     verb_pp[..verb_pp.len() - 2].to_string()
                 } else {
                     verb_pp.to_string()
                 }
-            })
+            },
+            std::string::ToString::to_string,
+        )
     };
 
     // --- Pattern 1: "had been V-ed by" (past-perfect passive) — must run FIRST ---
@@ -136,7 +192,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         let agent = &caps[3];
         let verb_past = resolve_verb(verb_pp.as_str());
         let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        format!("{} had {} the {}", agent_trimmed, verb_past, subject)
+        format!("{agent_trimmed} had {verb_past} the {subject}")
     });
 
     // --- Pattern 2: "were V-ed by" (plural simple-past passive) ---
@@ -152,7 +208,7 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         let agent = &caps[3];
         let verb_past = resolve_verb(verb_pp.as_str());
         let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        format!("{} {} the {}", agent_trimmed, verb_past, subject)
+        format!("{agent_trimmed} {verb_past} the {subject}")
     });
 
     // --- Pattern 3: "was V-ed by" (singular simple-past passive, original) ---
@@ -168,14 +224,21 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
         let agent = &caps[3];
         let verb_past = resolve_verb(verb_pp.as_str());
         let agent_trimmed = agent.trim_end_matches(['.', '!', '?']);
-        format!("{} {} the {}", agent_trimmed, verb_past, subject)
+        format!("{agent_trimmed} {verb_past} the {subject}")
     });
 
     Ok(result.to_string())
 }
 
-/// Normalize past-tense verbs to present tense
+/// Normalize past-tense verbs to present tense.
+///
+/// `unnecessary_wraps` allowed: callers expect `PyResult` for uniform
+/// error propagation via `?`, even though the regex patterns are
+/// compile-time constants that cannot fail at runtime.
+/// `items_after_statements` allowed: the `static` regex is colocated
+/// with its `get_or_init` call for readability.
 #[pyfunction]
+#[allow(clippy::unnecessary_wraps, clippy::items_after_statements)]
 fn normalize_present_tense(text: &str) -> PyResult<String> {
     use std::sync::OnceLock;
 
@@ -195,7 +258,7 @@ fn normalize_present_tense(text: &str) -> PyResult<String> {
         if let Some(&present) = present_tense_map.get(lower.as_str()) {
             // Preserve original capitalization
             if word.starts_with(|c: char| c.is_uppercase())
-                && !lower.chars().all(|c| c.is_uppercase())
+                && !lower.chars().all(char::is_uppercase)
             {
                 let mut capitalized = String::with_capacity(present.len());
                 let mut chars = present.chars();
@@ -364,7 +427,7 @@ fn remove_articles(text: &str) -> String {
         .replace_all(text, |caps: &regex::Captures| {
             let word = caps.get(0).unwrap().as_str();
             // Acronym protection: skip removal if word is fully uppercase (e.g., "THE" in "THE API")
-            if word.chars().all(|c| c.is_uppercase()) {
+            if word.chars().all(char::is_uppercase) {
                 word.to_string()
             } else {
                 String::new()
@@ -501,7 +564,7 @@ fn remove_copular_be(text: &str) -> String {
         .replace_all(text, |caps: &regex::Captures| {
             let word = caps.get(0).unwrap().as_str();
             // Acronym protection: skip removal if word is fully uppercase (e.g., IS, BE, AM)
-            if word.chars().all(|c| c.is_uppercase()) {
+            if word.chars().all(char::is_uppercase) {
                 return word.to_string();
             }
             String::new()
@@ -540,7 +603,7 @@ fn remove_intensifiers(text: &str) -> String {
         .replace_all(text, |caps: &regex::Captures| {
             let word = caps.get(0).unwrap().as_str();
             // Acronym protection: skip removal if word is fully uppercase
-            if word.chars().all(|c| c.is_uppercase()) {
+            if word.chars().all(char::is_uppercase) {
                 word.to_string()
             } else {
                 String::new()
@@ -601,7 +664,7 @@ fn eliminate_connectives(text: &str) -> String {
             // the word is fully uppercase (e.g., "AND" in "FOO AND BAR" or
             // "AND," in "FOO AND, BAR").
             let alpha: String = word.chars().filter(|c| c.is_alphabetic()).collect();
-            if !alpha.is_empty() && alpha.chars().all(|c| c.is_uppercase()) {
+            if !alpha.is_empty() && alpha.chars().all(char::is_uppercase) {
                 full_match.to_string()
             } else {
                 " ".to_string()
@@ -818,6 +881,13 @@ fn apply_caveman_rules(text: &str, strategy: Option<&HashSet<&str>>) -> PyResult
 }
 
 /// Full-pipeline compress — all 9 rules (default, unchanged behavior).
+///
+/// # Errors
+///
+/// Returns `CompressionError::TooShort` (as `PyValueError`) if the
+/// compressed result has fewer than 2 words (logical-completeness check).
+/// Active-voice transform errors propagate as `PyValueError` if the
+/// regex fails to match expected passive patterns.
 #[pyfunction]
 #[pyo3(signature = (text))]
 pub fn compress(text: &str) -> PyResult<String> {
@@ -825,6 +895,13 @@ pub fn compress(text: &str) -> PyResult<String> {
 }
 
 /// Adaptive compress — auto-classifies text and selects optimal rule subset.
+///
+/// Same error contract as [`compress`].
+///
+/// # Errors
+///
+/// Returns `CompressionError::TooShort` (as `PyValueError`) if the
+/// compressed result has fewer than 2 words.
 #[pyfunction]
 #[pyo3(signature = (text))]
 pub fn compress_adaptive(text: &str) -> PyResult<String> {
@@ -835,7 +912,13 @@ pub fn compress_adaptive(text: &str) -> PyResult<String> {
     apply_caveman_rules(text, Some(&strategy))
 }
 
-/// Preprocess text by applying active voice, present tense, and logical completeness checks
+/// Preprocess text by applying active voice, present tense, and logical completeness checks.
+///
+/// # Errors
+///
+/// Returns `CompressionError::TooShort` (as `PyValueError`) if the result
+/// fails the logical-completeness check (fewer than 2 words after transform).
+/// Active-voice transform errors propagate as `PyValueError`.
 #[pyfunction]
 #[pyo3(signature = (text))]
 pub fn preprocess_text(text: &str) -> PyResult<String> {
@@ -916,8 +999,7 @@ mod tests {
         let r1 = remove_articles("THE API handles requests efficiently");
         assert!(
             r1.contains("THE"),
-            "uppercase THE should be preserved: {}",
-            r1
+            "uppercase THE should be preserved: {r1}"
         );
         assert!(r1.contains("API"));
 
@@ -936,8 +1018,7 @@ mod tests {
         let r1 = remove_intensifiers("This is VERY important");
         assert!(
             r1.contains("VERY"),
-            "uppercase VERY should be preserved: {}",
-            r1
+            "uppercase VERY should be preserved: {r1}"
         );
         assert!(r1.contains("important"));
 
@@ -950,15 +1031,11 @@ mod tests {
     fn test_eliminate_connectives_acronym_guard() {
         // Uppercase "AND" (acronym like ANDROID) should NOT be stripped
         let r1 = eliminate_connectives("ANDROID is the OS");
-        assert!(
-            r1.contains("ANDROID"),
-            "ANDROID should be preserved: {}",
-            r1
-        );
+        assert!(r1.contains("ANDROID"), "ANDROID should be preserved: {r1}");
 
         // Uppercase "OR" (acronym) should NOT be stripped
         let r2 = eliminate_connectives("XOR is bitwise or");
-        assert!(r2.contains("XOR"), "XOR should be preserved: {}", r2);
+        assert!(r2.contains("XOR"), "XOR should be preserved: {r2}");
 
         // Lowercase connectives still stripped
         let r3 = eliminate_connectives("Use index because query slow");
@@ -988,16 +1065,14 @@ mod tests {
     fn test_transform_active_voice_were() {
         // Plural passive: "The balls were thrown by John" → "John threw the balls"
         let result = transform_active_voice("The balls were thrown by John").unwrap();
-        assert!(result.contains("John"), "agent should appear: {}", result);
+        assert!(result.contains("John"), "agent should appear: {result}");
         assert!(
             result.contains("threw"),
-            "verb should be conjugated: {}",
-            result
+            "verb should be conjugated: {result}"
         );
         assert!(
             result.contains("the balls"),
-            "plural subject preserved: {}",
-            result
+            "plural subject preserved: {result}"
         );
     }
 
@@ -1007,20 +1082,14 @@ mod tests {
         // Note: resolve_verb returns the base/present form ("sign" from "signed"), not past tense
         let result =
             transform_active_voice("The documents had been signed by the manager").unwrap();
-        assert!(
-            result.contains("manager"),
-            "agent should appear: {}",
-            result
-        );
+        assert!(result.contains("manager"), "agent should appear: {result}");
         assert!(
             result.contains("had sign"),
-            "should use past perfect with base verb: {}",
-            result
+            "should use past perfect with base verb: {result}"
         );
         assert!(
             result.contains("the documents"),
-            "subject preserved: {}",
-            result
+            "subject preserved: {result}"
         );
     }
 
@@ -1028,11 +1097,10 @@ mod tests {
     fn test_transform_active_voice_were_irregular() {
         // Irregular verb: "The songs were sung by the choir" → "the choir sang the songs"
         let result = transform_active_voice("The songs were sung by the choir").unwrap();
-        assert!(result.contains("choir"), "agent should appear: {}", result);
+        assert!(result.contains("choir"), "agent should appear: {result}");
         assert!(
             result.contains("sang"),
-            "irregular verb should be conjugated: {}",
-            result
+            "irregular verb should be conjugated: {result}"
         );
     }
 
@@ -1041,20 +1109,15 @@ mod tests {
         // Irregular past-perfect: "The city had been built by the emperor" → "the emperor had built the city"
         // verb_conjugation_map maps pp→simple-past: "built" → "built"
         let result = transform_active_voice("The city had been built by the emperor").unwrap();
-        assert!(
-            result.contains("emperor"),
-            "agent should appear: {}",
-            result
-        );
+        assert!(result.contains("emperor"), "agent should appear: {result}");
         assert!(
             result.contains("had built"),
-            "should use past perfect with simple past verb: {}",
-            result
+            "should use past perfect with simple past verb: {result}"
         );
     }
 
     /// Diagnostic test for the shrunk PP→SP data fix.
-    /// With the fix at verb_maps.rs:182 ("shrunk" → "shrank"), this should
+    /// With the fix at `verb_maps.rs:182` ("shrunk" → "shrank"), this should
     /// transform "was shrunk by" → "shrank" in the active voice output.
     /// Pre-fix the output would contain "shrunk" (self-map).
     #[test]
@@ -1237,25 +1300,23 @@ mod tests {
         assert_eq!(
             result.len(),
             1,
-            "Abbreviation 'Dr.' should not split: {:?}",
-            result
+            "Abbreviation 'Dr.' should not split: {result:?}"
         );
 
         // "U.S.A." should not cause splits
         let result2 = split_into_sentences("The U.S.A. is a country.");
-        assert_eq!(result2.len(), 1, "'U.S.A.' should not split: {:?}", result2);
+        assert_eq!(result2.len(), 1, "'U.S.A.' should not split: {result2:?}");
 
         // "e.g." and "i.e." should not cause splits
         let result3 = split_into_sentences("Use tools e.g. hammers.");
-        assert_eq!(result3.len(), 1, "'e.g.' should not split: {:?}", result3);
+        assert_eq!(result3.len(), 1, "'e.g.' should not split: {result3:?}");
 
         // Normal sentences still split correctly
         let result4 = split_into_sentences("First sentence. Second sentence.");
         assert_eq!(
             result4.len(),
             2,
-            "Normal sentences should split: {:?}",
-            result4
+            "Normal sentences should split: {result4:?}"
         );
     }
 }

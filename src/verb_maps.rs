@@ -13,10 +13,10 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-/// Cached past-participle → simple-past map (avoids rebuilding 306-entry HashMap per sentence).
+/// Cached past-participle → simple-past map (avoids rebuilding 306-entry `HashMap` per sentence).
 static PP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
-/// Cached simple-past → present-base map (avoids rebuilding 357-entry HashMap per sentence).
+/// Cached simple-past → present-base map (avoids rebuilding 357-entry `HashMap` per sentence).
 static SP_CACHE: OnceLock<HashMap<&'static str, &'static str>> = OnceLock::new();
 
 /// Map of past participles to simple past forms for passive-to-active transformation.
@@ -682,12 +682,12 @@ pub static SIMPLE_PAST_TO_PRESENT: &[(&str, &str)] = &[
 
 /// Returns a cached reference to the past-participle → simple-past map.
 pub fn verb_conjugation_map() -> &'static HashMap<&'static str, &'static str> {
-    PP_CACHE.get_or_init(|| PAST_PARTICIPLE_TO_SIMPLE_PAST.iter().cloned().collect())
+    PP_CACHE.get_or_init(|| PAST_PARTICIPLE_TO_SIMPLE_PAST.iter().copied().collect())
 }
 
 /// Returns a cached reference to the simple-past → present-base map.
 pub fn present_tense_map() -> &'static HashMap<&'static str, &'static str> {
-    SP_CACHE.get_or_init(|| SIMPLE_PAST_TO_PRESENT.iter().cloned().collect())
+    SP_CACHE.get_or_init(|| SIMPLE_PAST_TO_PRESENT.iter().copied().collect())
 }
 
 #[cfg(test)]
@@ -766,7 +766,7 @@ mod tests {
     }
 
     /// BUG-C1 regression: past-participle forms must NOT appear in
-    /// SIMPLE_PAST_TO_PRESENT, because the pipeline runs PP→SP→PRES in order.
+    /// `SIMPLE_PAST_TO_PRESENT`, because the pipeline runs PP→SP→PRES in order.
     /// Having a PP entry in the SP→PRES map would misroute "I have forgotten"
     /// to "forgotten" (key not found) OR, if duplicated, leak ambiguity into
     /// the simple-past lookup. The audit removed 34 such entries.
@@ -820,7 +820,7 @@ mod tests {
     }
 
     /// BUG-C1 regression (companion): the TRUE simple-past forms (e.g., "forgot",
-    /// "broke", "froze") MUST still be present in SIMPLE_PAST_TO_PRESENT, so
+    /// "broke", "froze") MUST still be present in `SIMPLE_PAST_TO_PRESENT`, so
     /// "I forgot" still normalises to "I forget".
     #[test]
     fn test_true_simple_pasts_still_present() {
@@ -843,7 +843,7 @@ mod tests {
         }
     }
 
-    /// Regression for the pre-existing data error at verb_maps.rs:182
+    /// Regression for the pre-existing data error at `verb_maps.rs:182`
     /// (out-of-scope from the 2026-06-05 audit, fixed in 2026-06-06 follow-up).
     ///
     /// "shrunk" is the past participle of "shrink"; the simple past is
@@ -853,9 +853,13 @@ mod tests {
     /// was still understandable ("has shrunk" stays unchanged) but
     /// non-standard.
     ///
-    /// After the fix, "shrunk" → "shrank" in PAST_PARTICIPLE_TO_SIMPLE_PAST,
+    /// After the fix, "shrunk" → "shrank" in `PAST_PARTICIPLE_TO_SIMPLE_PAST`,
     /// so "The package has shrunk" normalises to "The package shrank".
+    ///
+    /// `similar_names` allowed: the test deliberately uses `shrank`/`shrunk`
+    /// to verify the data fix; renaming would defeat the regression intent.
     #[test]
+    #[allow(clippy::similar_names)]
     fn test_shrunk_pp_maps_to_shrank() {
         let past_pp = verb_conjugation_map();
         // past_pp is HashMap<&'static str, &'static str>, so .get(key) returns
@@ -876,18 +880,22 @@ mod tests {
         );
     }
 
-    /// Regression for the pre-existing data error at verb_maps.rs:455
+    /// Regression for the pre-existing data error at `verb_maps.rs:455`
     /// (parallel to the 2026-06-06 fix at line 182).
     ///
-    /// SIMPLE_PAST_TO_PRESENT had `("shrunk", "shrink")` — but "shrunk"
+    /// `SIMPLE_PAST_TO_PRESENT` had `("shrunk", "shrink")` — but "shrunk"
     /// is a past participle, not a simple past. The simple past is
     /// "shrank". The original entry was producing the correct
     /// present-tense output ("shrink") for the wrong reason (lookup
     /// of a PP form) and silently masking the missing SP→PRES entry.
     ///
-    /// After the fix, "shrank" → "shrink" in SIMPLE_PAST_TO_PRESENT,
+    /// After the fix, "shrank" → "shrink" in `SIMPLE_PAST_TO_PRESENT`,
     /// and "shrunk" is no longer misclassified as a simple past.
+    ///
+    /// `similar_names` allowed: the test deliberately uses `shrank`/`shrink`
+    /// to verify the data fix; renaming would defeat the regression intent.
     #[test]
+    #[allow(clippy::similar_names)]
     fn test_shrank_sp_maps_to_shrink() {
         let past_pres = present_tense_map();
         // past_pres is HashMap<&'static str, &'static str>, so .get(key) returns
