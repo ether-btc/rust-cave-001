@@ -1,11 +1,22 @@
-/// Input text classifier — detects text type for adaptive rule selection.
-///
-/// Uses simple heuristics (no ML dependency) to classify text into types
-/// that respond optimally to different compression rule subsets.
-///
-/// This is the first component of the self-learning framework.
-/// The strategy selector (which maps type → rule subset) comes next,
-/// informed by benchmark oracle data.
+//! Input text classifier — detects text type for adaptive rule selection.
+//!
+//! Uses simple heuristics (no ML dependency) to classify text into types
+//! that respond optimally to different compression rule subsets.
+//!
+//! This is the first component of the self-learning framework.
+//! The strategy selector (which maps type → rule subset) comes next,
+//! informed by benchmark oracle data.
+//
+// Pedantic allows — the classifier uses `f64` arithmetic to compute
+// density scores (per-100-word ratios), then truncates to `usize` for
+// downstream dispatch. Precision loss and signed-truncation are
+// intentional for the heuristic; word counts and density ratios fit
+// comfortably in 52-bit mantissa + signed-positive values.
+#![allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 use regex::Regex;
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -28,7 +39,7 @@ pub enum TextType {
 }
 
 impl TextType {
-    pub fn label(&self) -> &'static str {
+    pub fn label(self) -> &'static str {
         match self {
             TextType::Technical => "technical",
             TextType::Conversational => "conversational",
@@ -40,16 +51,16 @@ impl TextType {
     }
 }
 
-/// Classify input text into a TextType based on content heuristics.
+/// Classify input text into a `TextType` based on content heuristics.
 ///
 /// Scoring dimensions:
-/// - avg_word_len: average word length (academic = long, dialogue = short)
-/// - connective_density: proportion of connectives (because, however, etc.)
-/// - article_density: proportion of articles (the, a, an)
-/// - pronoun_density: proportion of pronouns
-/// - code_like_score: proportion of code-like patterns (camelCase, =, (), {})
-/// - sentence_count: number of sentences
-/// - short_sentence_ratio: proportion of sentences under 5 words
+/// - `avg_word_len`: average word length (academic = long, dialogue = short)
+/// - `connective_density`: proportion of connectives (because, however, etc.)
+/// - `article_density`: proportion of articles (the, a, an)
+/// - `pronoun_density`: proportion of pronouns
+/// - `code_like_score`: proportion of code-like patterns (camelCase, =, (), {})
+/// - `sentence_count`: number of sentences
+/// - `short_sentence_ratio`: proportion of sentences under 5 words
 pub fn classify(text: &str) -> TextType {
     let text = text.trim();
     if text.is_empty() {
@@ -86,7 +97,7 @@ pub fn classify(text: &str) -> TextType {
     let short_sentence_ratio = if sentence_count > 0.0 {
         let sentences: Vec<&str> = text
             .split(['.', '!', '?'])
-            .map(|s| s.trim())
+            .map(str::trim)
             .filter(|s| !s.is_empty())
             .collect();
         let total = sentences.len() as f64;
@@ -158,20 +169,12 @@ pub fn classify(text: &str) -> TextType {
 /// Returns None to indicate "use default full pipeline".
 pub fn recommended_strategy(text_type: TextType) -> &'static [&'static str] {
     match text_type {
-        // Technical: aggressive compression, expand contractions, remove "be" verbs
-        TextType::Technical => &[
-            "split_sentences",
-            "expand_contractions",
-            "resolve_pronouns",
-            "active_voice",
-            "present_tense",
-            "remove_copular_be",
-            "remove_articles",
-            "remove_intensifiers",
-            "eliminate_connectives",
-            "word_limit_5",
-            "logical_completeness",
-        ],
+        // Technical and Mixed (unknown) both use the full aggressive pipeline
+        // — the difference is that Mixed is a fallback when classification is
+        // uncertain, so we apply every rule to maximise the chance of useful
+        // compression. Technical gets the same set by design (aggressive
+        // compression is the goal for technical content too).
+        TextType::Technical | TextType::Mixed => FULL_PIPELINE,
         // Conversational: expand contractions, keep pronouns
         TextType::Conversational => &[
             "split_sentences",
@@ -205,22 +208,23 @@ pub fn recommended_strategy(text_type: TextType) -> &'static [&'static str] {
         ],
         // Already minimal: no processing needed
         TextType::AlreadyMinimal => &["logical_completeness"],
-        // Mixed / unknown: full pipeline
-        TextType::Mixed => &[
-            "split_sentences",
-            "expand_contractions",
-            "resolve_pronouns",
-            "active_voice",
-            "present_tense",
-            "remove_copular_be",
-            "remove_articles",
-            "remove_intensifiers",
-            "eliminate_connectives",
-            "word_limit_5",
-            "logical_completeness",
-        ],
     }
 }
+
+/// Full aggressive pipeline — used for both `Technical` and `Mixed` (fallback).
+const FULL_PIPELINE: &[&str] = &[
+    "split_sentences",
+    "expand_contractions",
+    "resolve_pronouns",
+    "active_voice",
+    "present_tense",
+    "remove_copular_be",
+    "remove_articles",
+    "remove_intensifiers",
+    "eliminate_connectives",
+    "word_limit_5",
+    "logical_completeness",
+];
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -281,7 +285,7 @@ pub fn recommended_strategy_for_text(text: &str) -> Vec<String> {
     let text_type = classify(text);
     recommended_strategy(text_type)
         .iter()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect()
 }
 
@@ -369,8 +373,7 @@ mod tests {
             let strategy = recommended_strategy(*t);
             assert!(
                 !strategy.is_empty(),
-                "Strategy for {:?} should not be empty",
-                t
+                "Strategy for {t:?} should not be empty"
             );
         }
     }

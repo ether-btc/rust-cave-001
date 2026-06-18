@@ -1,5 +1,5 @@
 //! Custom error types for rust-cave-001 compression pipeline.
-//! Provides specific, actionable error messages instead of raw PyValueError.
+//! Provides specific, actionable error messages instead of raw `PyValueError`.
 
 use std::fmt;
 
@@ -19,7 +19,7 @@ pub enum CompressionError {
 }
 
 impl CompressionError {
-    /// Convert to a PyErr (for Python-callable functions)
+    /// Convert to a `PyErr` (for Python-callable functions)
     pub fn into_pyerr(self) -> pyo3::PyErr {
         pyo3::exceptions::PyValueError::new_err(self.to_string())
     }
@@ -29,16 +29,16 @@ impl fmt::Display for CompressionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             CompressionError::TooShort(s) => {
-                write!(f, "Text is too short: '{}' — provide at least 2 words", s)
+                write!(f, "Text is too short: '{s}' — provide at least 2 words")
             }
             CompressionError::VoiceTransformFailed(s) => {
-                write!(f, "Voice transform failed: {}", s)
+                write!(f, "Voice transform failed: {s}")
             }
             CompressionError::EmptyInput => {
                 write!(f, "Input is empty — provide at least 2 words")
             }
             CompressionError::PipelineError(s) => {
-                write!(f, "Pipeline error: {}", s)
+                write!(f, "Pipeline error: {s}")
             }
         }
     }
@@ -48,6 +48,6 @@ impl std::error::Error for CompressionError {}
 
 impl From<std::string::FromUtf8Error> for CompressionError {
     fn from(e: std::string::FromUtf8Error) -> Self {
-        CompressionError::PipelineError(format!("UTF-8 error: {}", e))
+        CompressionError::PipelineError(format!("UTF-8 error: {e}"))
     }
 }
