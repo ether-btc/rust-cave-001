@@ -100,9 +100,45 @@ jobs:
       - name: Run cargo audit
         run: cargo audit
 
+  validate-versions:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate version consistency
+        run: |
+          # Extract version from Cargo.toml
+          CARGO_VERSION=$(grep '^version\s*=' Cargo.toml | head -1 | sed 's/version\s*=\s*"\([^"]*\)"/\1/')
+          
+          # Extract version from pyproject.toml
+          PYPROJECT_VERSION=$(grep '^version\s*=' pyproject.toml | head -1 | sed 's/version\s*=\s*"\([^"]*\)"/\1/')
+          
+          # Extract version from git tag
+          TAG_VERSION=$(echo "${GITHUB_REF#refs/tags/v}")
+          
+          echo "Cargo.toml version: $CARGO_VERSION"
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+          echo "Git tag version: $TAG_VERSION"
+          
+          # Check Cargo.toml matches tag
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Cargo.toml version ($CARGO_VERSION) does not match git tag ($TAG_VERSION)"
+            exit 1
+          fi
+          
+          # Check pyproject.toml matches tag
+          if [ "$PYPROJECT_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::pyproject.toml version ($PYPROJECT_VERSION) does not match git tag ($TAG_VERSION)"
+            exit 1
+          fi
+          
+          echo "::notice::All versions match: $TAG_VERSION"
+
   publish:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, audit, validate-versions]
     environment:
       name: pypi
       url: https://pypi.org/project/rust-cave-001/
@@ -124,9 +160,39 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq python3-dev || true
-          pip install --quiet maturin
+          pip install --quiet maturin twine
 
-      - name: Build and publish to PyPI
+      - name: Build wheel
+        run: maturin build --release --auditwheel skip -o dist/
+
+      - name: Publish to PyPI
         env:
-          MATURIN_PYPI_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
-        run: maturin publish --skip-auditwheel
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: twine upload dist/*.whl --non-interactive
+
+      - name: Verify PyPI publication
+        run: |
+          # Wait for PyPI indexing (can take 30s-2min)
+          sleep 30
+          
+          # Extract version from tag
+          TAG_VERSION=$(echo "${GITHUB_REF#refs/tags/v}")
+          
+          # Verify package is available on PyPI
+          pip install rust-cave-001==${TAG_VERSION} --quiet
+          
+          # Verify the installed version matches
+          INSTALLED_VERSION=$(python3 -c "import rust_cave_001; print(rust_cave_001.__version__)" 2>/dev/null || echo "FAILED")
+          
+          if [ "$INSTALLED_VERSION" = "FAILED" ]; then
+            echo "::error::Failed to import rust_cave_001 after installation"
+            exit 1
+          fi
+          
+          if [ "$INSTALLED_VERSION" != "$TAG_VERSION" ]; then
+            echo "::error::Installed version ($INSTALLED_VERSION) does not match tag ($TAG_VERSION)"
+            exit 1
+          fi
+          
+          echo "::notice::Successfully verified rust-cave-001 v${TAG_VERSION} on PyPI"
