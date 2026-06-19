@@ -1341,4 +1341,59 @@ mod tests {
             "Normal sentences should split: {result4:?}"
         );
     }
+
+    // SEC-2 regression: decompress() must reject malicious size headers
+    #[test]
+    fn test_decompress_malicious_zero_size_header() {
+        // Craft a header claiming zero size - should be rejected
+        let malicious = 0u32.to_le_bytes().to_vec();
+        let result = decompress(&malicious);
+        assert!(result.is_err(), "Zero size header should be rejected");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("cannot be zero"),
+            "Error should mention zero size: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_decompress_malicious_huge_size_header() {
+        // Craft a header claiming 300MB size (exceeds 256MB limit) - should be rejected
+        let huge_size = 300u32 * 1024 * 1024; // 300 MB
+        let mut malicious = huge_size.to_le_bytes().to_vec();
+        malicious.push(0x00); // Add one byte of "compressed data"
+        let result = decompress(&malicious);
+        assert!(result.is_err(), "Huge size header should be rejected");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("exceeds maximum"),
+            "Error should mention size limit: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_decompress_missing_compressed_data() {
+        // Header with valid size but no compressed data after it
+        let valid_size = 100u32.to_le_bytes().to_vec();
+        let result = decompress(&valid_size);
+        assert!(result.is_err(), "Missing compressed data should be rejected");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("missing compressed data"),
+            "Error should mention missing data: {err_msg}"
+        );
+    }
+
+    #[test]
+    fn test_decompress_too_short_input() {
+        // Input shorter than 4 bytes - should fail immediately
+        let short = vec![0x00, 0x01, 0x02];
+        let result = decompress(&short);
+        assert!(result.is_err(), "Too short input should be rejected");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("at least 4 bytes"),
+            "Error should mention minimum length: {err_msg}"
+        );
+    }
 }
