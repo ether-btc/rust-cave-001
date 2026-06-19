@@ -183,7 +183,8 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     // M-2 fix: Extended to capture 2-3 word verb phrases (e.g., "carried out", "set up")
     static PATTERN_HAD_BEEN: OnceLock<Regex> = OnceLock::new();
     let had_been = PATTERN_HAD_BEEN.get_or_init(|| {
-        Regex::new(r"(?i)\bThe\s+(.+?)\s+had\s+been\s+([\w\s]+?)\s+by\s+(.+)").unwrap()
+        Regex::new(r"(?i)\bThe\s+(.+?)\s+had\s+been\s+([\w\s]+?)\s+by\s+(.+)")
+            .expect("PATTERN_HAD_BEEN regex should compile")
     });
 
     let text = had_been.replace_all(text, |caps: &regex::Captures| {
@@ -200,7 +201,8 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     // M-2 fix: Extended to capture 2-3 word verb phrases
     static PATTERN_WERE: OnceLock<Regex> = OnceLock::new();
     let were_passive = PATTERN_WERE
-        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)").unwrap());
+        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)")
+            .expect("PATTERN_WERE regex should compile"));
 
     let text = were_passive.replace_all(&text, |caps: &regex::Captures| {
         let subject = &caps[1];

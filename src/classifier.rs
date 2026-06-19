@@ -254,7 +254,15 @@ fn count_pattern(text: &str, pattern: &str) -> usize {
 
     // Try to get from cache first
     {
-        let cache_ref = cache.lock().unwrap();
+        // FIX: Handle poisoned mutex gracefully instead of panicking
+        let cache_ref = match cache.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                // Mutex was poisoned (another thread panicked while holding it)
+                // Recover the inner data and continue
+                poisoned.into_inner()
+            }
+        };
         if let Some(re) = cache_ref.get(pattern) {
             return re.find_iter(text).count();
         }
@@ -263,8 +271,17 @@ fn count_pattern(text: &str, pattern: &str) -> usize {
     // Compile and cache
     match Regex::new(pattern) {
         Ok(re) => {
+            // FIX: Handle poisoned mutex on insert as well
             let count = re.find_iter(text).count();
-            cache.lock().unwrap().insert(pattern.to_string(), re);
+            match cache.lock() {
+                Ok(mut guard) => {
+                    guard.insert(pattern.to_string(), re);
+                }
+                Err(poisoned) => {
+                    // Recover and insert anyway
+                    poisoned.into_inner().insert(pattern.to_string(), re);
+                }
+            }
             count
         }
         Err(_) => 0,
