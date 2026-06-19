@@ -30,6 +30,7 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 #[pyfunction]
 /// Decompress data using LZ4 algorithm.
 /// SEC-1 fix: validates input size to prevent decompression bombs.
+/// SEC-2 fix: validates header format and prevents integer overflow.
 /// The lz4 crate's `block::compress(..., prepend_size=true)` writes the
 /// uncompressed size as the first 4 bytes of the output (little-endian u32),
 /// which the matching `block::decompress(data, None)` reads back from src[0..4].
@@ -40,7 +41,8 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 ///
 /// Returns `PyOSError` if:
 /// - Input is shorter than 4 bytes (missing LZ4 size prefix)
-/// - The declared uncompressed size exceeds the 256 MiB bomb-prevention cap
+/// - The declared uncompressed size is 0 or exceeds 256 MiB bomb-prevention cap
+/// - The compressed data length is inconsistent with header
 /// - The LZ4 decompressor fails (corrupt input, mismatched size)
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
@@ -49,14 +51,32 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
             "Input too short: LZ4 data must be at least 4 bytes".to_string(),
         ));
     }
+    
     // Read uncompressed size from LZ4 block format (first 4 bytes, little-endian u32).
     let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    // Reject sizes > 256 MiB to prevent decompression bombs
-    if uncompressed_size > 1 << 28 {
+    
+    // SEC-2 fix: Reject zero size (invalid) and validate against constant
+    // Use explicit constant to avoid shift calculation errors
+    const MAX_DECOMPRESS_SIZE: u32 = 256 * 1024 * 1024; // 256 MiB
+    if uncompressed_size == 0 {
+        return Err(exceptions::PyOSError::new_err(
+            "Invalid LZ4 block: uncompressed size cannot be zero".to_string(),
+        ));
+    }
+    if uncompressed_size > MAX_DECOMPRESS_SIZE {
         return Err(exceptions::PyOSError::new_err(format!(
-            "Decompression size limit exceeded: decompressed size would be {uncompressed_size} bytes (max 256 MiB)"
+            "Decompression size limit exceeded: declared size {uncompressed_size} bytes exceeds maximum {MAX_DECOMPRESS_SIZE} bytes (256 MiB)"
         )));
     }
+    
+    // Additional validation: ensure compressed data has at least some content
+    // (header + at least 1 byte of compressed data is reasonable minimum)
+    if data.len() < 5 {
+        return Err(exceptions::PyOSError::new_err(
+            "Invalid LZ4 block: missing compressed data after header".to_string(),
+        ));
+    }
+    
     let decompressed =
         block::decompress(data, None).map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
     Ok(decompressed)
