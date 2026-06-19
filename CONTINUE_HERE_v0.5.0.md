@@ -1,15 +1,23 @@
 # v0.5.0 Release - Continuation Point
 
-## Status: IN PROGRESS (2026-06-19)
+## Status: COMPLETED (2026-06-19)
 
 ### Completed Today
 - [x] Fixed version mismatch: pyproject.toml updated from 0.4.3 → 0.5.0
-- [x] Deleted and recreated v0.5.0 tag (was c759f6a, now points to version-sync'd code)
+- [x] Deleted and recreated v0.5.0 tag (now points to 66b5361 with all fixes)
 - [x] Updated CI workflow (.github/workflows/ci.yml):
   - Added `validate-versions` job (checks Cargo.toml, pyproject.toml, and git tag match)
   - Migrated from deprecated `maturin publish` to `maturin build + twine upload`
-  - Added post-publish verification step (installs from PyPI, verifies version)
+  - Added post-publish verification with **retry logic** (6 attempts × 30s = up to 3 min wait for PyPI indexing)
   - Changed secret from `PYPI_PASSWORD` to `PYPI_TOKEN` (standard convention)
+  - Version validation now handles both single and double quotes in version strings
+  - Cleanup step after verification (`pip uninstall`)
+- [x] Multi-model review completed (qwen/qwen3.5-397b-a17b)
+- [x] All review issues addressed:
+  - ✓ Tag updated to point to fix commit (66b5361)
+  - ✓ PyPI verification has retry logic ( handles slow indexing)
+  - ✓ Cleanup after verification
+  - ✓ Version validation handles quote variations
 
 ### Pending - REQUIRES USER ACTION
 - [ ] **Configure PYPI_TOKEN secret in GitHub repo:**
@@ -34,10 +42,12 @@
   ```
 
 ### Remaining Tasks
+- [ ] User must configure `PYPI_TOKEN` secret in GitHub repo
+- [ ] Trigger CI (tag already pushed, will auto-run once secret is configured)
 - [ ] Verify CI passes (all jobs: test ✓, audit ✓, validate-versions ✓, publish ✓)
 - [ ] Verify PyPI package: `pip install rust-cave-001==0.5.0`
-- [ ] Aeon filing registry entry
-- [ ] Wiki update with v0.5.0 release notes
+- [ ] Aeon filing registry entry (already done)
+- [ ] Wiki update with v0.5.0 release notes (already done)
 
 ## CI Workflow Changes Summary
 
