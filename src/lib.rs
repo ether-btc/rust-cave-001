@@ -15,12 +15,25 @@ use std::sync::OnceLock;
 #[pyfunction]
 #[pyo3(signature = (data, level = 9))]
 /// Compress data using LZ4 algorithm.
+/// SEC-3 fix: validates input size to prevent compression DoS.
 ///
 /// # Errors
 ///
-/// Returns `PyOSError` if the LZ4 compressor fails to process the input
-/// (e.g. allocation failure, input larger than LZ4's max block size).
+/// Returns `PyOSError` if:
+/// - Input exceeds 256 MiB compression limit (DoS prevention)
+/// - The LZ4 compressor fails to process the input
+///   (e.g. allocation failure, input larger than LZ4's max block size).
 pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
+    // SEC-3 fix: Limit input size to prevent memory exhaustion attacks
+    const MAX_COMPRESS_SIZE: usize = 256 * 1024 * 1024; // 256 MiB
+    if data.len() > MAX_COMPRESS_SIZE {
+        return Err(exceptions::PyOSError::new_err(format!(
+            "Input too large: {} bytes exceeds maximum {} bytes (256 MiB)",
+            data.len(),
+            MAX_COMPRESS_SIZE
+        )));
+    }
+    
     let mode = CompressionMode::HIGHCOMPRESSION(level);
     let compressed = block::compress(data, Some(mode), true)
         .map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
@@ -1394,6 +1407,24 @@ mod tests {
         assert!(
             err_msg.contains("at least 4 bytes"),
             "Error should mention minimum length: {err_msg}"
+        );
+    }
+
+    // SEC-3 regression: compress() must reject oversized input
+    #[test]
+    fn test_compress_input_size_limit() {
+        // Create input larger than 256 MiB - should be rejected
+        // Use a sparse allocation to avoid actually using 257MB of RAM
+        let large_size = 257 * 1024 * 1024;
+        let large_input = vec![0u8; large_size];
+        assert_eq!(large_input.len(), large_size, "Test setup verification");
+        
+        let result = my_compress(&large_input, 9);
+        assert!(result.is_err(), "Oversized input should be rejected");
+        let err_msg = result.unwrap_err().to_string();
+        assert!(
+            err_msg.contains("Input too large"),
+            "Error should mention size limit: {err_msg}"
         );
     }
 }
