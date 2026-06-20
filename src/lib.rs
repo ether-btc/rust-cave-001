@@ -54,8 +54,8 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 ///
 /// Returns `PyOSError` if:
 /// - Input is shorter than 4 bytes (missing LZ4 size prefix)
-/// - The declared uncompressed size is 0 or exceeds 256 MiB bomb-prevention cap
-/// - The compressed data length is inconsistent with header
+/// - The declared uncompressed size exceeds 256 MiB bomb-prevention cap
+/// - The compressed data length is inconsistent with header (non-zero size needs data)
 /// - The LZ4 decompressor fails (corrupt input, mismatched size)
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
@@ -992,6 +992,7 @@ fn rust_cave_001(
         classifier::recommended_strategy_for_text,
         module
     )?)?;
+    module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
 

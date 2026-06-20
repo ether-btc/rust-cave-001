@@ -296,5 +296,52 @@ class TestDependencyCheck:
 
     def test_deps_available(self):
         """If rust_cave_001 is installed, _check_deps returns None."""
-        # In the test environment, rust_cave_001 should be available
         assert _check_deps() is None or "not installed" in _check_deps()
+
+
+# --- Security Limits ---
+
+class TestSecurityLimits:
+    """Test DoS prevention and stats limits."""
+
+    @pytest.mark.asyncio
+    async def test_batch_size_limit(self):
+        """Batch exceeding MAX_BATCH_SIZE should be rejected."""
+        from mcp_server.server import MAX_BATCH_SIZE
+
+        huge_batch = ["test text here"] * (MAX_BATCH_SIZE + 1)
+        raw = await call_tool("caveman_compress_batch", {"texts": huge_batch})
+        result = json.loads(raw)
+        assert "error" in result
+        assert "exceeds limit" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_batch_at_limit(self):
+        """Batch at exactly MAX_BATCH_SIZE should succeed."""
+        from mcp_server.server import MAX_BATCH_SIZE
+
+        batch = ["The system was designed by engineers."] * MAX_BATCH_SIZE
+        raw = await call_tool("caveman_compress_batch", {"texts": batch})
+        result = json.loads(raw)
+        assert isinstance(result, list)
+        assert len(result) == MAX_BATCH_SIZE
+
+    def test_stats_strategy_cap(self):
+        """Strategy dict should cap at MAX_STRATEGY_TRACKING entries."""
+        from mcp_server.server import MAX_STRATEGY_TRACKING
+
+        stats = SessionStats()
+        for i in range(MAX_STRATEGY_TRACKING + 10):
+            stats.record(100, 50, f"strategy_{i}")
+        assert len(stats.strategies_used) <= MAX_STRATEGY_TRACKING
+
+    def test_stats_auto_reset(self):
+        """Stats should auto-reset counters after MAX_STATS_COMPRESSIONS."""
+        from mcp_server.server import MAX_STATS_COMPRESSIONS
+
+        stats = SessionStats()
+        # Record enough to trigger reset
+        for _ in range(MAX_STATS_COMPRESSIONS + 1):
+            stats.record(100, 50, "full")
+        # compressions counter resets, but cumulative totals persist
+        assert stats.compressions < MAX_STATS_COMPRESSIONS

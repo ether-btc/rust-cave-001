@@ -1073,18 +1073,29 @@ class TestSecurityAudit:
         # For now, just verify it's rejected (current behavior is acceptable)
         assert "exceed" in err_msg.lower() or "limit" in err_msg.lower()
 
-    def test_decompress_zero_size_rejected(self):
-        """SEC-2 regression: Zero size header must be rejected."""
+    def test_decompress_zero_size_roundtrip(self):
+        """SEC-2: Zero-size header from legitimate empty input should round-trip."""
+        from rust_cave_001 import my_compress, decompress
+
+        # Legitimate empty compression
+        compressed = my_compress(b"", 9)
+        assert len(compressed) >= 4, "Compressed empty should have header"
+
+        # Round-trip should succeed
+        result = decompress(compressed)
+        assert result == b"", f"Expected empty bytes, got {result!r}"
+
+    def test_decompress_malformed_zero_payload(self):
+        """SEC-2: Malformed payload with zero header + garbage should be rejected by LZ4."""
         from rust_cave_001 import decompress
-        import pytest
-        
-        # Header claiming zero size
-        malicious = (0).to_bytes(4, byteorder="little") + b"x"
-        
+
+        # Zero header + invalid trailing byte (not valid LZ4 data)
+        malformed = (0).to_bytes(4, byteorder="little") + b"x"
+
         with pytest.raises(OSError) as exc_info:
-            decompress(malicious)
-        
-        assert "invalid" in str(exc_info.value).lower() or "zero" in str(exc_info.value).lower()
+            decompress(malformed)
+
+        assert "invalid" in str(exc_info.value).lower()
 
     def test_decompress_huge_size_rejected(self):
         """SEC-2 regression: Huge size header must be rejected."""

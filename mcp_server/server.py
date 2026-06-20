@@ -266,8 +266,10 @@ if MCP_AVAILABLE:
                         "strategy": strategy,
                     }
                 )
-            except (ValueError, Exception) as e:
+            except ValueError as e:
                 results.append({"index": i, "error": str(e)[:200]})
+            except Exception:
+                results.append({"index": i, "error": "Compression failed (internal error)"})
 
         return json.dumps(results, indent=2)
 
