@@ -43,6 +43,9 @@ except ImportError:
     MCP_AVAILABLE = False
     FastMCP = None  # type: ignore[assignment,misc]
 
+# Always define mcp for testing, even if MCP not available
+mcp = None
+
 # --- rust-cave-001 native module ---
 try:
     import rust_cave_001  # type: ignore[import-not-found,no-attr-defined]
@@ -51,7 +54,7 @@ try:
 except ImportError:
     LIBRARY_AVAILABLE = False
     rust_cave_001 = None  # type: ignore[assignment]
-
+# Enable stats by default - can be disabled via env var
 _STATS_ENABLED = os.environ.get("CAVEMAN_MCP_STATS", "on").lower().strip() in (
     "on",
     "true",
@@ -59,6 +62,11 @@ _STATS_ENABLED = os.environ.get("CAVEMAN_MCP_STATS", "on").lower().strip() in (
     "yes",
     "enabled",
 )
+
+# Production limits
+MAX_BATCH_SIZE = 100  # Max texts per batch call
+MAX_STATS_COMPRESSIONS = 10000  # Auto-reset stats after N compressions
+MAX_STRATEGY_TRACKING = 20  # Cap unique strategies tracked
 
 
 @dataclass
@@ -77,9 +85,23 @@ class SessionStats:
         self.total_input_tokens += input_tokens
         self.total_output_tokens += output_tokens
         self.total_tokens_saved += max(0, input_tokens - output_tokens)
-        self.strategies_used[strategy] = self.strategies_used.get(strategy, 0) + 1
 
-    def to_dict(self) -> dict:
+        # Cap strategy tracking to prevent unbounded growth
+        if len(self.strategies_used) < MAX_STRATEGY_TRACKING or strategy in self.strategies_used:
+            self.strategies_used[strategy] = min(
+                self.strategies_used.get(strategy, 0) + 1, 1000
+            )
+
+        # Auto-reset after max compressions to prevent memory bloat
+        if self.compressions >= MAX_STATS_COMPRESSIONS:
+            self._reset()
+
+    def _reset(self) -> None:
+        """Reset counters but keep cumulative totals for session lifetime."""
+        self.compressions = 0
+        self.strategies_used.clear()
+
+    def to_dict(self) -> dict[str, int | float | dict[str, int]]:
         pct = (
             round(self.total_tokens_saved / self.total_input_tokens * 100, 1)
             if self.total_input_tokens > 0
@@ -111,9 +133,9 @@ def _check_deps() -> str | None:
 # --- Server setup ---
 
 if MCP_AVAILABLE:
-    mcp = FastMCP("caveman")
+    mcp = FastMCP("caveman")  # type: ignore[assignment]
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[union-attr]
     def caveman_compress(text: str, adaptive: bool = False) -> str:
         """Compress text using deterministic Caveman rules.
 
@@ -145,7 +167,7 @@ if MCP_AVAILABLE:
 
         if not text or len(text.split()) < 2:
             return json.dumps(
-                {"error": "Input must have at least 2 words", "input": text[:100]}
+                {"error": "Input must have at least 2 words"}
             )
 
         try:
@@ -178,11 +200,14 @@ if MCP_AVAILABLE:
                 indent=2,
             )
         except ValueError as e:
-            return json.dumps({"error": str(e), "input": text[:100]})
+            # Sanitize error message - never echo user input
+            safe_msg = str(e)[:200]
+            return json.dumps({"error": safe_msg})
         except Exception as e:
-            return json.dumps({"error": f"Compression failed: {e}"})
+            # Log full error internally, return generic message
+            return json.dumps({"error": "Compression failed (internal error)"})
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[union-attr]
     def caveman_compress_batch(texts: list[str], adaptive: bool = False) -> str:
         """Compress multiple texts in a single call.
 
@@ -190,7 +215,7 @@ if MCP_AVAILABLE:
         bulk processing (e.g., compressing a list of file contents).
 
         Args:
-            texts: List of input texts to compress.
+            texts: List of input texts to compress. Max 100 texts per call.
             adaptive: If True, use adaptive compression per text.
 
         Returns:
@@ -200,11 +225,17 @@ if MCP_AVAILABLE:
         if err:
             return json.dumps({"error": err})
 
+        # DoS prevention: limit batch size
+        if len(texts) > MAX_BATCH_SIZE:
+            return json.dumps({
+                "error": f"Batch size exceeds limit ({len(texts)} > {MAX_BATCH_SIZE} texts)"
+            })
+
         results = []
         for i, text in enumerate(texts):
             if not text or len(text.split()) < 2:
                 results.append(
-                    {"index": i, "error": "Too short", "original": text[:100]}
+                    {"index": i, "error": "Input must have at least 2 words"}
                 )
                 continue
             try:
@@ -224,19 +255,23 @@ if MCP_AVAILABLE:
                     {
                         "index": i,
                         "compressed": result,
+                        "original_tokens": input_tokens,
+                        "compressed_tokens": output_tokens,
+                        "tokens_saved": max(0, input_tokens - output_tokens),
                         "reduction_pct": round(
                             (1 - output_tokens / input_tokens) * 100, 1
                         )
                         if input_tokens > 0
                         else 0,
+                        "strategy": strategy,
                     }
                 )
             except (ValueError, Exception) as e:
-                results.append({"index": i, "error": str(e), "original": text[:100]})
+                results.append({"index": i, "error": str(e)[:200]})
 
         return json.dumps(results, indent=2)
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[union-attr]
     def caveman_classify(text: str) -> str:
         """Classify text type and get recommended compression strategy.
 
@@ -269,7 +304,7 @@ if MCP_AVAILABLE:
             indent=2,
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[union-attr]
     def caveman_estimate_tokens(text: str) -> str:
         """Estimate token count for text using regex-based approximation.
 
@@ -291,7 +326,7 @@ if MCP_AVAILABLE:
             {"estimated_tokens": tokens, "char_count": len(text)}, indent=2
         )
 
-    @mcp.tool()
+    @mcp.tool()  # type: ignore[union-attr]
     def caveman_stats() -> str:
         """Show compression statistics for this MCP session.
 
@@ -315,7 +350,7 @@ def main() -> None:
     if err:
         print(err, file=sys.stderr)
         sys.exit(1)
-    mcp.run()
+    mcp.run()  # type: ignore[union-attr]
 
 
 if __name__ == "__main__":
