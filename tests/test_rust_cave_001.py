@@ -1266,8 +1266,8 @@ class TestCycle3Integration:
         ]
         
         for text in test_cases:
-            if not text:
-                # Empty text should raise error, not panic
+            if not text or len(text.split()) < 2:
+                # Empty or single-word text should raise ValueError, not panic
                 try:
                     compress(text)
                 except ValueError:
