@@ -4,14 +4,14 @@ build-backend = "maturin"
 
 [project]
 name = "rust-cave-001"
-version = "0.5.0"
-description = "High-performance text compression — Rust-backed Python bindings for sentence-aware NLP compression and token optimization."
+version = "0.6.0"
+description = "High-performance text compression — Rust-backed Python bindings for sentence-aware NLP compression and token optimization. Now with MCP server."
 readme = "README.md"
 license = { text = "MIT" }
 authors = [
     { name = "ether-btc" }
 ]
-keywords = ["compression", "text", "hermes-agent", "llm", "optimization"]
+keywords = ["compression", "text", "hermes-agent", "llm", "optimization", "mcp", "token-reduction"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -26,6 +26,13 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
 ]
 requires-python = ">=3.10"
+
+[project.optional-dependencies]
+mcp = ["mcp>=1.0.0"]
+dev = ["pytest>=7.0", "pytest-asyncio>=0.21", "mcp>=1.0.0"]
+
+[project.scripts]
+caveman-mcp = "mcp_server.server:main"
 
 [project.urls]
 Homepage = "https://github.com/ether-btc/rust-cave-001"

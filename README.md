@@ -98,6 +98,78 @@ Applies bincode serialization then LZ4 compression.
 
 Decompresses then deserializes: the inverse of `serialize_compressed`.
 
+## MCP Server (v0.6.0+)
+
+rust-cave-001 ships with a built-in [MCP (Model Context Protocol)](https://modelcontextprotocol.io/) server, exposing compression as tools that any MCP-compatible AI agent can use.
+
+### Quick Start
+
+```bash
+# Install with MCP support
+pip install rust-cave-001[mcp]
+
+# Run the server
+caveman-mcp
+# or
+python -m mcp_server.server
+```
+
+### Tools
+
+| Tool | Description |
+|------|-------------|
+| `caveman_compress` | Compress text (full or adaptive mode). Returns compressed text + token savings. |
+| `caveman_compress_batch` | Compress multiple texts in one call. Efficient for bulk processing. |
+| `caveman_classify` | Classify text type (technical/conversational/academic/dialogue/minimal/mixed) and get recommended strategy. |
+| `caveman_estimate_tokens` | Estimate token count for any text. |
+| `caveman_stats` | Session compression statistics (total tokens saved, strategies used). |
+
+### Hermes Agent Configuration
+
+Add to `~/.hermes/config.yaml`:
+
+```yaml
+mcp:
+  caveman:
+    command: python
+    args: ["-m", "mcp_server.server"]
+    env:
+      CAVEMAN_MCP_STATS: "on"
+```
+
+### Claude Desktop Configuration
+
+Add to `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "caveman": {
+      "command": "caveman-mcp"
+    }
+  }
+}
+```
+
+### Example: Using the compress tool
+
+When an AI agent calls `caveman_compress`:
+
+```json
+// Input
+{"text": "The system was designed by the engineering team for high performance.", "adaptive": false}
+
+// Output
+{
+  "compressed": "engineering team for high performance",
+  "original_tokens": 11,
+  "compressed_tokens": 5,
+  "tokens_saved": 6,
+  "reduction_pct": 54.5,
+  "strategy": "full"
+}
+```
+
 ## The 9 Compression Rules
 
 Applied in order by `compress()` (based on [Caveman Compression SPEC](https://github.com/wilpel/caveman-compression) by wilpel):
