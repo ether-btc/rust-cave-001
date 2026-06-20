@@ -1360,7 +1360,11 @@ mod tests {
         let compressed = my_compress(b"", 9).unwrap();
         assert!(compressed.len() >= 4, "Compressed empty should have header");
         let result = decompress(&compressed);
-        assert!(result.is_ok(), "Empty round-trip should succeed: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Empty round-trip should succeed: {:?}",
+            result
+        );
         assert!(result.unwrap().is_empty(), "Should return empty bytes");
     }
 

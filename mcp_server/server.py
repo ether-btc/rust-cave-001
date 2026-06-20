@@ -203,7 +203,7 @@ if MCP_AVAILABLE:
             # Sanitize error message - never echo user input
             safe_msg = str(e)[:200]
             return json.dumps({"error": safe_msg})
-        except Exception as e:
+        except Exception:
             # Log full error internally, return generic message
             return json.dumps({"error": "Compression failed (internal error)"})
 

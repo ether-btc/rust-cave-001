@@ -1019,7 +1019,6 @@ class TestSecurityAudit:
     def test_compress_input_size_limit(self):
         """SEC-3: Test that my_compress rejects very large inputs."""
         from rust_cave_001 import my_compress
-        import pytest
         
         # 300MB should be rejected (if validation is implemented)
         # Note: This test will fail until the fix is applied
@@ -1029,7 +1028,7 @@ class TestSecurityAudit:
             result = my_compress(large_data)
             # If no exception, at least verify it doesn't hang or crash
             assert isinstance(result, bytes)
-        except (ValueError, OSError) as e:
+        except (ValueError, OSError):
             # Acceptable: validation working
             pass
         except MemoryError:
@@ -1039,7 +1038,6 @@ class TestSecurityAudit:
     def test_compress_level_validation(self):
         """SEC-3: Test compression level validation."""
         from rust_cave_001 import my_compress
-        import pytest
         
         data = b"test data"
         
@@ -1105,7 +1103,6 @@ class TestSecurityAudit:
     def test_no_panic_on_edge_cases(self):
         """Verify no panics on edge case inputs that could cross FFI boundary."""
         from rust_cave_001 import normalize_present_tense, compress
-        import pytest
         
         # Single character should not panic
         result = normalize_present_tense("a")
@@ -1158,7 +1155,7 @@ class TestSecurityAudit:
 
     def test_consistent_error_types(self):
         """Test that user-input validation errors use consistent exception types."""
-        from rust_cave_001 import compress, decompress, my_compress
+        from rust_cave_001 import compress, decompress
         import pytest
         
         # Too short text should raise ValueError
@@ -1212,14 +1209,13 @@ class TestSecurityAudit:
         try:
             result = compress(long_text)
             assert len(result) > 0
-        except ValueError as e:
+        except ValueError:
             # Acceptable if it rejects due to sentence-level constraints
             pass
 
     def test_memory_allocation_graceful_failure(self):
         """Test that memory allocation failures are handled gracefully."""
         from rust_cave_001 import my_compress
-        import pytest
         
         # Try to compress something that might cause allocation issues
         # (though modern systems have plenty of memory for this test)
@@ -1282,12 +1278,11 @@ class TestCycle3Integration:
             # Compress
             compressed_text = compress(text)
             assert len(compressed_text) > 0
-            
-            # Token count should decrease or stay same
-            original_tokens = estimate_tokens(text)
-            compressed_tokens = estimate_tokens(compressed_text)
-            # Note: compression might increase tokens in edge cases due to
-            # verb expansion, so we don't strictly assert decrease
+
+            # Verify token estimation works (no assertion on direction since
+            # compression can increase tokens in edge cases due to verb expansion)
+            assert estimate_tokens(text) > 0
+            assert estimate_tokens(compressed_text) > 0
             
             # Byte-level compression round-trip
             bytes_compressed = my_compress(compressed_text.encode())
