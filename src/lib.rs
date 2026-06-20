@@ -33,7 +33,7 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
             MAX_COMPRESS_SIZE
         )));
     }
-    
+
     let mode = CompressionMode::HIGHCOMPRESSION(level);
     let compressed = block::compress(data, Some(mode), true)
         .map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
@@ -54,8 +54,8 @@ pub fn my_compress(data: &[u8], level: i32) -> PyResult<Vec<u8>> {
 ///
 /// Returns `PyOSError` if:
 /// - Input is shorter than 4 bytes (missing LZ4 size prefix)
-/// - The declared uncompressed size is 0 or exceeds 256 MiB bomb-prevention cap
-/// - The compressed data length is inconsistent with header
+/// - The declared uncompressed size exceeds 256 MiB bomb-prevention cap
+/// - The compressed data length is inconsistent with header (non-zero size needs data)
 /// - The LZ4 decompressor fails (corrupt input, mismatched size)
 pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
     // Validate: block data needs at least 4 bytes header
@@ -64,32 +64,29 @@ pub fn decompress(data: &[u8]) -> PyResult<Vec<u8>> {
             "Input too short: LZ4 data must be at least 4 bytes".to_string(),
         ));
     }
-    
+
     // Read uncompressed size from LZ4 block format (first 4 bytes, little-endian u32).
     let uncompressed_size = u32::from_le_bytes([data[0], data[1], data[2], data[3]]);
-    
-    // SEC-2 fix: Reject zero size (invalid) and validate against constant
-    // Use explicit constant to avoid shift calculation errors
+
+    // SEC-2 fix: validate against bomb-prevention cap.
+    // Zero size IS valid — it represents genuinely empty input (e.g. my_compress(b"")).
+    // Use explicit constant to avoid shift calculation errors.
     const MAX_DECOMPRESS_SIZE: u32 = 256 * 1024 * 1024; // 256 MiB
-    if uncompressed_size == 0 {
-        return Err(exceptions::PyOSError::new_err(
-            "Invalid LZ4 block: uncompressed size cannot be zero".to_string(),
-        ));
-    }
     if uncompressed_size > MAX_DECOMPRESS_SIZE {
         return Err(exceptions::PyOSError::new_err(format!(
             "Decompression size limit exceeded: declared size {uncompressed_size} bytes exceeds maximum {MAX_DECOMPRESS_SIZE} bytes (256 MiB)"
         )));
     }
-    
-    // Additional validation: ensure compressed data has at least some content
-    // (header + at least 1 byte of compressed data is reasonable minimum)
-    if data.len() < 5 {
+
+    // For non-zero sizes, ensure compressed data has at least some content
+    // (header + at least 1 byte of compressed data is reasonable minimum).
+    // Zero-size (empty input round-trip) is allowed with just the 4-byte header.
+    if uncompressed_size > 0 && data.len() < 5 {
         return Err(exceptions::PyOSError::new_err(
             "Invalid LZ4 block: missing compressed data after header".to_string(),
         ));
     }
-    
+
     let decompressed =
         block::decompress(data, None).map_err(|e| exceptions::PyOSError::new_err(e.to_string()))?;
     Ok(decompressed)
@@ -233,9 +230,10 @@ fn transform_active_voice(text: &str) -> PyResult<String> {
     // "The balls were thrown by John" → "John threw the balls"
     // M-2 fix: Extended to capture 2-3 word verb phrases
     static PATTERN_WERE: OnceLock<Regex> = OnceLock::new();
-    let were_passive = PATTERN_WERE
-        .get_or_init(|| Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)")
-            .expect("PATTERN_WERE regex should compile"));
+    let were_passive = PATTERN_WERE.get_or_init(|| {
+        Regex::new(r"(?i)\bThe\s+(.+?)\s+were\s+([\w\s]+?)\s+by\s+(.+)")
+            .expect("PATTERN_WERE regex should compile")
+    });
 
     let text = were_passive.replace_all(&text, |caps: &regex::Captures| {
         let subject = &caps[1];
@@ -994,6 +992,7 @@ fn rust_cave_001(
         classifier::recommended_strategy_for_text,
         module
     )?)?;
+    module.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }
 
@@ -1355,18 +1354,19 @@ mod tests {
         );
     }
 
-    // SEC-2 regression: decompress() must reject malicious size headers
+    // SEC-2 regression: decompress() handles empty-input round-trip correctly
     #[test]
-    fn test_decompress_malicious_zero_size_header() {
-        // Craft a header claiming zero size - should be rejected
-        let malicious = 0u32.to_le_bytes().to_vec();
-        let result = decompress(&malicious);
-        assert!(result.is_err(), "Zero size header should be rejected");
-        let err_msg = result.unwrap_err().to_string();
+    fn test_decompress_zero_size_roundtrip() {
+        // Zero-size header from legitimate empty input should round-trip
+        let compressed = my_compress(b"", 9).unwrap();
+        assert!(compressed.len() >= 4, "Compressed empty should have header");
+        let result = decompress(&compressed);
         assert!(
-            err_msg.contains("cannot be zero"),
-            "Error should mention zero size: {err_msg}"
+            result.is_ok(),
+            "Empty round-trip should succeed: {:?}",
+            result
         );
+        assert!(result.unwrap().is_empty(), "Should return empty bytes");
     }
 
     #[test]
@@ -1389,7 +1389,10 @@ mod tests {
         // Header with valid size but no compressed data after it
         let valid_size = 100u32.to_le_bytes().to_vec();
         let result = decompress(&valid_size);
-        assert!(result.is_err(), "Missing compressed data should be rejected");
+        assert!(
+            result.is_err(),
+            "Missing compressed data should be rejected"
+        );
         let err_msg = result.unwrap_err().to_string();
         assert!(
             err_msg.contains("missing compressed data"),
@@ -1418,7 +1421,7 @@ mod tests {
         let large_size = 257 * 1024 * 1024;
         let large_input = vec![0u8; large_size];
         assert_eq!(large_input.len(), large_size, "Test setup verification");
-        
+
         let result = my_compress(&large_input, 9);
         assert!(result.is_err(), "Oversized input should be rejected");
         let err_msg = result.unwrap_err().to_string();

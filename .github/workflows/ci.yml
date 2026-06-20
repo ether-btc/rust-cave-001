@@ -12,19 +12,10 @@ env:
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
 
 jobs:
-  test:
+  rust-checks:
     runs-on: ubuntu-latest
-    env:
-      # Unset PYO3_PYTHON so maturin auto-detects from PATH (setup-python sets PATH)
-      PYO3_PYTHON: ""
-      PYTHON: ""
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -39,24 +30,6 @@ jobs:
           restore-keys: |
             cargo-registry-
 
-      - name: Cache pip
-        uses: actions/cache@v5
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ hashFiles('pyproject.toml') }}
-          restore-keys: |
-            pip-
-
-      - name: Install Python dependencies
-        run: |
-          # Diagnose environment
-          python3 --version && which python3
-          ls /usr/lib/x86_64-linux-gnu/libpython* 2>/dev/null || echo "no x86_64 libpython"
-          # Install dev headers (maturin auto-detects Python from PATH)
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq python3-dev || true
-          pip install --quiet maturin pytest ruff
-
       - name: Check Rust formatting
         run: cargo fmt --check
 
@@ -66,13 +39,55 @@ jobs:
       - name: Rust tests
         run: cargo test
 
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    env:
+      PYO3_PYTHON: ""
+      PYTHON: ""
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/registry
+          key: cargo-registry-${{ hashFiles('Cargo.lock') }}
+          restore-keys: |
+            cargo-registry-
+
+      - name: Cache pip
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ matrix.python-version }}-${{ hashFiles('pyproject.toml') }}
+          restore-keys: |
+            pip-${{ matrix.python-version }}-
+
+      - name: Install Python dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python3-dev || true
+          pip install --quiet maturin pytest pytest-asyncio ruff mcp
+
       - name: Build and install
         run: maturin build --release --auditwheel skip -o dist/
 
       - name: Install built wheel
         run: pip install dist/*.whl --force-reinstall --no-deps
 
-      - name: Run Python tests
+      - name: Run Python tests (core + MCP server)
         run: pytest tests/ -v
 
       - name: Run ruff lint
@@ -138,7 +153,7 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [test, audit, validate-versions]
+    needs: [rust-checks, test, audit, validate-versions]
     environment:
       name: pypi
       url: https://pypi.org/project/rust-cave-001/
