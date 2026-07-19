@@ -1,3 +1,32 @@
+## [0.6.1] - 2026-07-16
+
+### Changed
+- **Rebuild with current toolchain** — wheel rebuilt with rustc 1.96.0 / maturin (2026-07-16). No source changes vs v0.6.0; the version bump tracks the republish.
+- **Smaller wheel** — the manylinux `aarch64` wheel dropped from 1.06 MB → 890 KB (~17% smaller). The compiled `.so` went from 3.18 MB (unstripped) → 2.23 MB (stripped). Same functionality; debug symbols are no longer shipped in the binary distribution.
+
+### Fixed
+- **PyPI/Git version sync** — v0.6.0 had been published to PyPI on 2026-07-08 but the working-tree version bump to 0.6.1 was left uncommitted, so the git tag, CHANGELOG, and GitHub Release lagged behind PyPI. v0.6.1 closes that gap: source, tag, and PyPI are now in sync.
+
+### Validation
+- `cargo test --lib` → 43 passed
+- `pytest tests/` → 170 passed (143 core + 27 MCP server)
+- `cargo clippy --all-targets -- -D warnings` → clean
+- `cargo fmt --check` → clean
+- Local wheel sha256 matches PyPI-published wheel sha256 (wheel + sdist verified)
+
+## [0.6.0] - 2026-06-19
+
+### Added
+- **MCP server** — new `caveman-mcp` entry point exposes Caveman Compression as Model Context Protocol tools (`caveman_compress`, `caveman_compress_batch`, `caveman_classify`, `caveman_estimate_tokens`, `caveman_stats`). Compatible with any MCP client (Hermes Agent, Claude Desktop, etc.).
+- Optional `[mcp]` extra: `pip install rust-cave-001[mcp]`.
+- 27 Python tests covering the MCP server tools and protocol behaviour.
+
+### Security
+- **SEC-1**: `compress()` validates the input header and uses explicit constants.
+- **SEC-2**: `decompress()` validates the input header, rejects zero-size payloads, and uses an explicit constant for the decompressed-size limit. Regression tests added.
+- **SEC-3**: `compress()` enforces an input size limit (DoS prevention).
+- Poisoned mutex in the classifier pattern cache is now handled gracefully.
+
 ## [0.5.0] - 2026-06-18
 
 ### Fixed
