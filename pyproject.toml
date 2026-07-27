@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "rust-cave-001"
-version = "0.4.3"
+version = "0.4.7"
 description = "High-performance text compression — Rust-backed Python bindings for sentence-aware NLP compression and token optimization."
 readme = "README.md"
 license = { text = "MIT" }
