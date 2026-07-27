@@ -125,5 +125,5 @@ jobs:
 
       - name: Build and publish to PyPI
         env:
-          MATURIN_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+          MATURIN_PYPI_TOKEN: ${{ secrets.PYPI_PASSWORD }}
         run: maturin publish --skip-auditwheel
