@@ -53,6 +53,11 @@ PUBLIC_READINESS_PLAN.md
 
 # Local Cargo build config (target-dir on USB)
 .cargo/
+# Cargo build artifacts when CARGO_TARGET_DIR was passed as a literal
+# unexpanded string (creates a literal "${CARGO_TARGET_DIR:-...}" tree).
+# Defensive: covers both the literal-name variant and any sane expansion.
+${CARGO_TARGET_DIR:*/
+target/
 repomix_digest.md
 .ocrrc.yml
 

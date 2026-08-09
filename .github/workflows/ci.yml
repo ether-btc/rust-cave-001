@@ -190,12 +190,12 @@ jobs:
         run: |
           # Extract version from tag
           TAG_VERSION=$(echo "${GITHUB_REF#refs/tags/v}")
-          
+
           # Wait for PyPI indexing and retry if needed (can take 2-5 min during high load)
           echo "Waiting for PyPI indexing of rust-cave-001==${TAG_VERSION}..."
           MAX_RETRIES=6
           RETRY_DELAY=30
-          
+
           for i in $(seq 1 $MAX_RETRIES); do
             echo "Attempt $i of $MAX_RETRIES..."
             if pip install rust-cave-001==${TAG_VERSION} --quiet 2>/dev/null; then
@@ -210,21 +210,21 @@ jobs:
               exit 1
             fi
           done
-          
+
           # Verify the installed version matches
           INSTALLED_VERSION=$(python3 -c "import rust_cave_001; print(rust_cave_001.__version__)" 2>/dev/null || echo "FAILED")
-          
+
           if [ "$INSTALLED_VERSION" = "FAILED" ]; then
             echo "::error::Failed to import rust_cave_001 after installation"
             exit 1
           fi
-          
+
           if [ "$INSTALLED_VERSION" != "$TAG_VERSION" ]; then
             echo "::error::Installed version ($INSTALLED_VERSION) does not match tag ($TAG_VERSION)"
             exit 1
           fi
-          
+
           # Cleanup test installation
           pip uninstall -y rust-cave-001 --quiet 2>/dev/null || true
-          
+
           echo "::notice::Successfully verified rust-cave-001 v${TAG_VERSION} on PyPI"
